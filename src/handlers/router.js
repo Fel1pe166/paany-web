@@ -9,8 +9,9 @@ import { storePanel } from '../ui/store.js';
 import * as C from './client.js';
 import * as A from './admin.js';
 import * as K from './community.js';
+import * as Z from './customize.js';
 
-const ADMIN_COMMANDS = new Set(['admin', 'produto', 'gpedido', 'cupom', 'vendas', 'vip', 'configurar']);
+const ADMIN_COMMANDS = new Set(['admin', 'produto', 'gpedido', 'cupom', 'vendas', 'vip', 'configurar', 'ticket', 'embed']);
 
 async function onCommand(i) {
   // Comandos só funcionam no servidor configurado
@@ -40,6 +41,8 @@ async function onCommand(i) {
     case 'vip': return A.vipCommand(i);
     case 'configurar': return A.configCommand(i);
     case 'torneio': return K.tournamentCommand(i);
+    case 'ticket': return Z.ticketCommand(i);
+    case 'embed': return Z.embedCommand(i);
     case 'votacao': return K.pollCommand(i);
     case 'video':
     case 'musica': return K.mediaCommand(i);
@@ -49,6 +52,7 @@ async function onCommand(i) {
 
 async function onAutocomplete(i) {
   if (i.commandName === 'torneio' || i.commandName === 'votacao') return i.respond(K.communityAutocomplete(i));
+  if (i.commandName === 'ticket' || i.commandName === 'embed') return i.respond(Z.customizeAutocomplete(i));
   const focused = String(i.options.getFocused() || '').toLowerCase();
   const admin = ADMIN_COMMANDS.has(i.commandName) && isAdmin(i.user.id);
   let items = listProducts({ includeInactive: admin });
@@ -67,6 +71,8 @@ async function onComponent(i) {
   const wait = cooldown(i.user.id, 'click', 800);
   if (wait && scope !== 'adm') return i.reply({ embeds: [notice('Devagar!', 'error')], flags: MessageFlags.Ephemeral });
 
+  if (scope === 'trate') return i.showModal(C.ticketRatingModal(action, Number(args[0])));
+  if (scope === 'emb') return Z.embedButton(i, action, args);
   if (scope === 'trn') return K.tournamentButton(i, action, args);
   if (scope === 'poll') return K.pollButton(i, action, args);
   if (scope === 'med') return K.mediaButton(i, action, args);
@@ -120,6 +126,9 @@ async function onModal(i) {
   const [, kind, ...args] = i.customId.split(':');
   if (kind === 'coupon') return C.startPurchase(i, args[0], i.fields.getTextInputValue('code'));
   if (kind === 'ticket') return C.submitTicket(i, args[0]);
+  if (kind === 'trate') return C.submitTicketRating(i, args[0], Number(args[1]));
+  if (kind === 'tkpanel' || kind === 'tkwelcome' || kind === 'tkopt') return Z.ticketModalSubmit(i, kind, args);
+  if (kind === 'embed') return Z.embedModalSubmit(i, args);
   if (kind === 'review') return C.submitReview(i, args[0]);
   if (kind === 'padd' || kind === 'pedit') return A.productModalSubmit(i, kind, args[0]);
   if (kind === 'approve') return A.approveManual(i, args[0], i.fields.getTextInputValue('confirm'));

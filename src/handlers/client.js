@@ -14,7 +14,9 @@ import {
   cancelOrder, createOrder, evaluateCoupon, getOrder, getProduct, markInReview, userOrders,
 } from '../services/orders.js';
 import { checkMpOrder, getCheckout } from '../services/payments.js';
-import { closeTicket, createTicket, TICKET_REASONS } from '../services/tickets.js';
+import {
+  claimTicket, closeTicket, createTicket, publishTicketRating, reasonLabel, saveTicketRating,
+} from '../services/tickets.js';
 import {
   checkoutView, confirmView, helpView, orderButtons, orderEmbed, ordersList, productList, productView, supportPanel, termsView,
 } from '../ui/store.js';
@@ -250,10 +252,29 @@ export async function submitReview(i, orderId) {
   return respond(i, ok('Obrigado pela avaliação!'));
 }
 
+/* ------------------------- Avaliação do atendimento ------------------------- */
+
+export function ticketRatingModal(ticketId, rating) {
+  return new ModalBuilder().setCustomId(`modal:trate:${ticketId}:${rating}`).setTitle(`Sua nota: ${'★'.repeat(rating)}`).addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('comment').setLabel('Quer deixar um comentário? (opcional)')
+      .setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setPlaceholder('O que foi bom ou o que podia melhorar?')),
+  );
+}
+
+export async function submitTicketRating(i, ticketId, rating) {
+  const comment = i.fields.getTextInputValue('comment');
+  const r = saveTicketRating({ ticketId, userId: i.user.id, rating, comment });
+  if (r.error) return respond(i, err(r.error));
+  await publishTicketRating({ ticket: r.ticket, rating: r.rating, comment, staffId: r.staffId });
+  const thanks = notice(`Obrigado pela avaliação! Você deu **${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}** para o atendimento #${r.ticket.id}.`, 'ok');
+  if (i.isFromMessage?.()) return i.update({ embeds: [thanks], components: [], attachments: [] }).catch(() => respond(i, { embeds: [thanks], flags: EPH }));
+  return respond(i, { embeds: [thanks], flags: EPH });
+}
+
 /* ------------------------------ Tickets ----------------------------- */
 
 export function ticketModal(reason, orderId = '') {
-  const m = new ModalBuilder().setCustomId(`modal:ticket:${reason}`).setTitle(TICKET_REASONS[reason]?.slice(0, 45) || 'Suporte');
+  const m = new ModalBuilder().setCustomId(`modal:ticket:${reason}`).setTitle(reasonLabel(reason).slice(0, 45) || 'Suporte');
   m.addComponents(
     new ActionRowBuilder().addComponents(
       new TextInputBuilder().setCustomId('order').setLabel('ID do pedido (se tiver)').setStyle(TextInputStyle.Short)
@@ -293,10 +314,13 @@ export async function submitTicket(i, reason) {
 export async function ticketAction(i, action) {
   if (action === 'close') {
     const r = await closeTicket(i.channel, i.member);
-    return respond(i, r.error ? err(r.error) : ok('Ticket será fechado em 5 segundos.'));
+    if (r.error) return respond(i, err(r.error));
+    return respond(i, ok(`Ticket será fechado em 5 segundos.${r.ratingSent ? ' O cliente recebeu o pedido de avaliação na DM.' : ''}`));
   }
   if (action === 'claim') {
     if (!isStaff(i.member)) return respond(i, err('Só a equipe pode assumir tickets.'));
+    const r = claimTicket(i.channelId, i.user.id);
+    if (r.error) return respond(i, err(r.error));
     return i.reply({ embeds: [notice(`<@${i.user.id}> assumiu este atendimento.`, 'ok')] });
   }
   if (action === 'call') {

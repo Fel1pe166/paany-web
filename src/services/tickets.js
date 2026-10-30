@@ -1,25 +1,19 @@
 import {
-  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits,
+  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits,
 } from 'discord.js';
 import { config } from '../config.js';
-import { audit, getSetting, one, run } from '../db.js';
+import { all, audit, getSetting, one, run } from '../db.js';
 import { baseEmbed, logoFile } from '../theme.js';
-import { brl, isStaff } from '../util.js';
+import { brl, clip, isStaff } from '../util.js';
 import { getOrder } from './orders.js';
-import { sendLog } from './logger.js';
+import { getClient, sendLog } from './logger.js';
+import { colorInt, fillTemplate, getTicketConfig, reasonLabel } from './ticketConfig.js';
 
-export const TICKET_REASONS = {
-  duvida: 'Dúvidas sobre produtos',
-  pagamento: 'Problemas com pagamento',
-  nao_recebido: 'Produto não recebido',
-  reembolso: 'Solicitação de reembolso',
-  vip: 'Problemas com VIP',
-  outros: 'Outros assuntos',
-  comprovante: 'Comprovante de Pix manual',
-};
+export { reasonLabel };
 
 export const openTicketOf = (userId) =>
   one(`SELECT * FROM tickets WHERE user_id = ? AND status = 'aberto' ORDER BY id DESC LIMIT 1`, userId);
+export const getTicket = (id) => one('SELECT * FROM tickets WHERE id = ?', Number(id));
 
 /**
  * Cria um canal privado de atendimento.
@@ -73,9 +67,10 @@ export async function createTicket(guild, user, { reason, orderId = null, descri
   run('INSERT INTO tickets(channel_id, user_id, reason, order_id, created_at) VALUES(?,?,?,?,?)',
     channel.id, user.id, reason, order?.id ?? null, Date.now());
 
-  const e = baseEmbed(`Atendimento • ${TICKET_REASONS[reason] || reason}`)
-    .setDescription(`Olá <@${user.id}>! Explique o que aconteceu e a equipe vai te responder aqui.\n` +
-      'Nunca envie senhas ou dados de cartão. A equipe **nunca** pede pagamento por fora da loja.');
+  const cfg = getTicketConfig();
+  const vars = { usuario: `<@${user.id}>`, motivo: reasonLabel(reason), servidor: guild.name };
+  const e = baseEmbed(clip(fillTemplate(cfg.welcome.title, { ...vars, usuario: user.globalName || user.username }), 256), { color: colorInt(cfg.panel.color) })
+    .setDescription(fillTemplate(cfg.welcome.message, vars));
   if (order) {
     e.addFields(
       { name: 'Pedido', value: `\`${order.id}\``, inline: true },
@@ -104,6 +99,15 @@ export function ticketButtons() {
   );
 }
 
+/** Registra quem assumiu o atendimento (vai junto na avaliação). */
+export function claimTicket(channelId, staffId) {
+  const t = one(`SELECT * FROM tickets WHERE channel_id = ? AND status = 'aberto'`, channelId);
+  if (!t) return { error: 'Este canal não é um ticket aberto.' };
+  run('UPDATE tickets SET claimed_by = ? WHERE id = ?', staffId, t.id);
+  audit(staffId, 'ticket.assumir', `#${t.id}`);
+  return { ok: true, ticket: t };
+}
+
 /** Gera transcrição em texto do canal (precisa do Message Content Intent). */
 async function transcript(channel) {
   const lines = [];
@@ -120,6 +124,73 @@ async function transcript(channel) {
   }
   return lines.reverse().join('\n');
 }
+
+/* ------------------------------ Avaliação do atendimento ------------------------------ */
+
+export function ratingRequest(t, staffId) {
+  const cfg = getTicketConfig();
+  const e = new EmbedBuilder().setColor(colorInt(cfg.panel.color)).setTitle('Avalie seu atendimento')
+    .setDescription(cfg.rating.message)
+    .addFields(
+      { name: 'Ticket', value: `#${t.id}`, inline: true },
+      { name: 'Assunto', value: reasonLabel(t.reason), inline: true },
+      ...(staffId ? [{ name: 'Atendido por', value: `<@${staffId}>`, inline: true }] : []),
+    )
+    .setThumbnail('attachment://logo.png')
+    .setFooter({ text: `${config.storeName} • leva 5 segundos`, iconURL: 'attachment://logo.png' });
+  const row = new ActionRowBuilder().addComponents([1, 2, 3, 4, 5].map((n) =>
+    new ButtonBuilder().setCustomId(`trate:${t.id}:${n}`).setLabel(`${n} ★`).setStyle(n >= 4 ? ButtonStyle.Success : n <= 2 ? ButtonStyle.Danger : ButtonStyle.Secondary)));
+  return { embeds: [e], files: [logoFile()], components: [row] };
+}
+
+/** Salva a nota. Só quem abriu o ticket, só depois de fechado, uma vez. */
+export function saveTicketRating({ ticketId, userId, rating, comment = '' }) {
+  const t = getTicket(ticketId);
+  if (!t || t.user_id !== userId) return { error: 'Atendimento não encontrado.' };
+  if (t.status !== 'fechado') return { error: 'Esse atendimento ainda está aberto.' };
+  const n = Number(rating);
+  if (!Number.isInteger(n) || n < 1 || n > 5) return { error: 'Nota inválida.' };
+  if (one('SELECT 1 FROM ticket_ratings WHERE ticket_id = ?', t.id)) return { error: 'Você já avaliou esse atendimento. Obrigado!' };
+  const staffId = t.claimed_by || (t.closed_by && t.closed_by !== t.user_id ? t.closed_by : null);
+  run('INSERT INTO ticket_ratings(ticket_id, user_id, staff_id, rating, comment, created_at) VALUES(?,?,?,?,?,?)',
+    t.id, userId, staffId, n, clip(String(comment || '').trim(), 500) || null, Date.now());
+  audit(userId, 'ticket.avaliar', `#${t.id} nota=${n}`);
+  return { ok: true, ticket: t, rating: n, staffId };
+}
+
+/** Publica a avaliação no canal escolhido pelo admin. */
+export async function publishTicketRating({ ticket, rating, comment, staffId }) {
+  const channelId = getSetting('channel_ticket_reviews') || getSetting('channel_reviews');
+  if (!channelId) return false;
+  try {
+    const ch = await getClient().channels.fetch(channelId);
+    const cfg = getTicketConfig();
+    const e = new EmbedBuilder().setColor(colorInt(cfg.panel.color))
+      .setTitle(`${'★'.repeat(rating)}${'☆'.repeat(5 - rating)} · Atendimento`)
+      .setDescription(comment ? `“${clip(comment, 500)}”` : '_Sem comentário._')
+      .addFields(
+        { name: 'Cliente', value: `<@${ticket.user_id}>`, inline: true },
+        { name: 'Atendente', value: staffId ? `<@${staffId}>` : '—', inline: true },
+        { name: 'Assunto', value: reasonLabel(ticket.reason), inline: true },
+      )
+      .setFooter({ text: `Ticket #${ticket.id}`, iconURL: 'attachment://logo.png' })
+      .setTimestamp();
+    await ch.send({ embeds: [e], files: [logoFile()], allowedMentions: { parse: [] } });
+    return true;
+  } catch (e) {
+    console.warn('[avaliação de ticket] não consegui publicar:', e.message);
+    return false;
+  }
+}
+
+export function ticketRatingStats(limit = 50) {
+  const s = one('SELECT COUNT(*) n, AVG(rating) avg FROM ticket_ratings');
+  const byStaff = all(`SELECT staff_id, COUNT(*) n, AVG(rating) avg FROM ticket_ratings WHERE staff_id IS NOT NULL GROUP BY staff_id ORDER BY avg DESC, n DESC LIMIT 20`);
+  const recent = all(`SELECT r.*, t.reason FROM ticket_ratings r JOIN tickets t ON t.id = r.ticket_id ORDER BY r.created_at DESC LIMIT ?`, limit);
+  return { count: s.n, avg: s.avg, byStaff, recent };
+}
+
+/* ------------------------------------ Fechar ------------------------------------ */
 
 export async function closeTicket(channel, closer) {
   const t = one(`SELECT * FROM tickets WHERE channel_id = ? AND status = 'aberto'`, channel.id);
@@ -138,9 +209,17 @@ export async function closeTicket(channel, closer) {
   }
   await sendLog('admin', {
     title: `Ticket #${t.id} fechado`,
-    description: `Cliente: <@${t.user_id}> • Motivo: ${TICKET_REASONS[t.reason] || t.reason}${t.order_id ? ` • Pedido \`${t.order_id}\`` : ''}\nFechado por <@${closer.id}>`,
+    description: `Cliente: <@${t.user_id}> • Motivo: ${reasonLabel(t.reason)}${t.order_id ? ` • Pedido \`${t.order_id}\`` : ''}\nFechado por <@${closer.id}>${t.claimed_by ? ` • Atendido por <@${t.claimed_by}>` : ''}`,
     files,
   });
+
+  // Pede a avaliação na DM de quem abriu (não para o canal interno de comprovante)
+  let ratingSent = false;
+  if (getTicketConfig().rating.enabled && t.reason !== 'comprovante') {
+    const staffId = t.claimed_by || (closer.id !== t.user_id ? closer.id : null);
+    const user = await channel.client.users.fetch(t.user_id).catch(() => null);
+    ratingSent = await user?.send(ratingRequest({ ...t, status: 'fechado' }, staffId)).then(() => true).catch(() => false) ?? false;
+  }
   setTimeout(() => channel.delete('Ticket fechado').catch(() => {}), 5000);
-  return { ok: true };
+  return { ok: true, ratingSent };
 }

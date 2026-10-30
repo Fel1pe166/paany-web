@@ -212,6 +212,28 @@ CREATE TABLE IF NOT EXISTS media_cache (
   created_at INTEGER NOT NULL
 );
 
+-- Avaliação do atendimento (enviada na DM ao fechar o ticket)
+CREATE TABLE IF NOT EXISTS ticket_ratings (
+  ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id),
+  user_id TEXT NOT NULL,
+  staff_id TEXT,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment TEXT,
+  created_at INTEGER NOT NULL
+);
+
+-- Embeds com botões criados pelo admin
+CREATE TABLE IF NOT EXISTS custom_embeds (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL,
+  channel_id TEXT,
+  message_id TEXT,
+  created_by TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   actor_id TEXT,

@@ -275,3 +275,25 @@ test('comunidade: lista torneios e votações e encerra pelo painel', async () =
   assert.equal(x.ok, true);
   assert.equal(T.getTournament(t.id).status, 'cancelado');
 });
+
+test('painel: personalizar tickets e criar embed sem publicar', async () => {
+  const g = await (await call('/api/ticket-config')).json();
+  assert.equal(g.config.panel.title, 'Central de suporte');
+  const bad = await call('/api/ticket-config', { method: 'PUT', body: { panel: { color: 'xx' } } });
+  assert.equal(bad.status, 400);
+  const ok = await (await call('/api/ticket-config', { method: 'PUT', body: { panel: { title: 'Ajuda Cutify' }, options: [...g.config.options, { label: 'Parcerias', emoji: '🤝' }] } })).json();
+  assert.equal(ok.data.config.panel.title, 'Ajuda Cutify');
+  assert.ok(ok.data.config.options.some((o) => o.label === 'Parcerias' && /^c\d+$/.test(o.value)));
+  assert.equal((await call('/api/ticket-config/publish', { method: 'POST', body: {} })).status, 400);
+  const reset = await (await call('/api/ticket-config/reset', { method: 'POST', body: {} })).json();
+  assert.equal(reset.data.config.panel.title, 'Central de suporte');
+
+  const e = await (await call('/api/embeds', { method: 'POST', body: { name: 'Regras', publish: false, data: { title: 'Regras', color: '#ffffff', buttons: [{ label: 'Loja', action: 'store' }] } } })).json();
+  assert.equal(e.ok, true);
+  assert.equal(e.embed.data.buttons[0].action, 'store');
+  assert.equal((await call('/api/embeds', { method: 'POST', body: { data: { title: 'X' } } })).status, 400); // publicar sem canal
+  const up = await (await call(`/api/embeds/${e.embed.id}`, { method: 'PUT', body: { name: 'Regras v2', publish: false, data: { title: 'Regras 2' } } })).json();
+  assert.equal(up.embed.name, 'Regras v2');
+  const del = await (await call(`/api/embeds/${e.embed.id}/delete`, { method: 'POST', body: {} })).json();
+  assert.equal(del.list.length, 0);
+});

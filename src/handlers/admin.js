@@ -17,7 +17,8 @@ import {
 import {
   approveManualOrder, cancelOrderAdmin, redeliverOrder, refundOrder, rejectManualOrder,
 } from '../services/actions.js';
-import { orderButtons, orderEmbed, storePanel, supportPanel, termsText } from '../ui/store.js';
+import { orderButtons, orderEmbed, storePanel, termsText } from '../ui/store.js';
+import { publishSupportPanel } from '../ui/support.js';
 import { EPH, respond } from './client.js';
 
 const err = (text) => ({ embeds: [notice(text, 'error')], flags: EPH });
@@ -435,7 +436,7 @@ export async function configCommand(i) {
   const sub = i.options.getSubcommand();
 
   if (sub === 'canais') {
-    const map = { vendas: 'channel_logs_vendas', admin: 'channel_logs_admin', erros: 'channel_logs_erros', aprovacoes: 'channel_approvals', avaliacoes: 'channel_reviews', categoria_tickets: 'ticket_category' };
+    const map = { vendas: 'channel_logs_vendas', admin: 'channel_logs_admin', erros: 'channel_logs_erros', aprovacoes: 'channel_approvals', avaliacoes: 'channel_reviews', avaliacoes_atendimento: 'channel_ticket_reviews', categoria_tickets: 'ticket_category' };
     const done = [];
     for (const [opt, key] of Object.entries(map)) {
       const ch = i.options.getChannel(opt);
@@ -450,8 +451,9 @@ export async function configCommand(i) {
     return respond(i, ok('Vitrine publicada! Ela lê os produtos ao vivo, não precisa republicar ao mudar preços.'));
   }
   if (sub === 'painel-suporte') {
-    await i.channel.send(supportPanel());
-    return respond(i, ok('Painel de suporte publicado.'));
+    await publishSupportPanel(i.client, i.channelId);
+    audit(i.user.id, 'config.painel_suporte', i.channelId);
+    return respond(i, ok('Painel de suporte publicado. Para mudar título, banner e opções, use `/ticket personalizar` e `/ticket opcao` (ou o painel web): ele se atualiza sozinho.'));
   }
   if (sub === 'termos') {
     return i.showModal(new ModalBuilder().setCustomId('modal:terms').setTitle('Termos da loja').addComponents(
@@ -467,6 +469,7 @@ export async function configCommand(i) {
       { name: 'Log de erros', value: ch('channel_logs_erros'), inline: true },
       { name: 'Aprovações', value: ch('channel_approvals'), inline: true },
       { name: 'Avaliações', value: ch('channel_reviews'), inline: true },
+      { name: 'Avaliações do atendimento', value: ch('channel_ticket_reviews'), inline: true },
       { name: 'Categoria tickets', value: ch('ticket_category'), inline: true },
       { name: 'Cargo da equipe', value: config.staffRoleId ? `<@&${config.staffRoleId}>` : '—', inline: true },
       { name: 'Pix automático', value: config.mpAccessToken ? (config.mpAccessToken.startsWith('TEST-') ? 'modo teste' : 'ativo') : 'desligado', inline: true },

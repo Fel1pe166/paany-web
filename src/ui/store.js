@@ -6,7 +6,6 @@ import { getSetting } from '../db.js';
 import { baseEmbed, bannerFile, CATEGORIES, COLORS, logoFile, STATUS_LABEL } from '../theme.js';
 import { brl, clip, rel, ts } from '../util.js';
 import { listProducts } from '../services/orders.js';
-import { TICKET_REASONS } from '../services/tickets.js';
 import { productRating, stars } from '../services/reviews.js';
 
 const DELIVERY_LABEL = {
@@ -255,6 +254,8 @@ export function helpView(admin = false) {
         '`/vendas` • `/vip listar|dar|remover`',
         '`/configurar canais|painel-loja|painel-suporte|termos`',
         '`/torneio criar|iniciar|cancelar` • `/votacao criar|encerrar`',
+        '`/ticket personalizar|boas-vindas|opcao|avaliacao|publicar|notas`',
+        '`/embed criar|editar|reenviar|apagar|listar`',
       ].join('\n'),
     });
   }
@@ -265,10 +266,4 @@ export function termsView() {
   return { embeds: [baseEmbed(`Termos da ${config.storeName}`).setDescription(termsText())], files: [logoFile()] };
 }
 
-export function supportPanel() {
-  const e = baseEmbed('Central de suporte')
-    .setDescription('Precisa de ajuda? Escolha o assunto abaixo e um canal privado será aberto com a equipe.\n\nTenha em mãos o **ID do pedido** (ex.: `CUT-ABCD1234`), se houver.');
-  const menu = new StringSelectMenuBuilder().setCustomId('tk:reason').setPlaceholder('Sobre o que você precisa de ajuda?')
-    .addOptions(Object.entries(TICKET_REASONS).filter(([k]) => k !== 'comprovante').map(([value, label]) => ({ label, value })));
-  return { embeds: [e], files: [logoFile()], components: [new ActionRowBuilder().addComponents(menu)] };
-}
+export { supportPanel } from './support.js';

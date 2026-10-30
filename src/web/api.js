@@ -14,7 +14,12 @@ import {
   createCoupon, createProduct, getOrder, getProduct, listProducts, normalizeCode, salesStats, updateProduct,
 } from '../services/orders.js';
 import { latestReviews } from '../services/reviews.js';
-import { TICKET_REASONS } from '../services/tickets.js';
+import { reasonLabel, ticketRatingStats } from '../services/tickets.js';
+import {
+  DEFAULT_TICKET_CONFIG, getTicketConfig, resetTicketConfig, saveTicketConfig,
+} from '../services/ticketConfig.js';
+import * as EMB from '../services/embeds.js';
+import { publishSupportPanel, refreshSupportPanel } from '../ui/support.js';
 import { DEFAULT_TERMS } from '../ui/store.js';
 import * as TRN from '../services/tournaments.js';
 import * as POLL from '../services/polls.js';
@@ -404,7 +409,7 @@ async function ticketsList(query) {
     guildId: config.guildId,
     counts: Object.fromEntries(all('SELECT status, COUNT(*) n FROM tickets GROUP BY status').map((r) => [r.status, r.n])),
     items: rows.map((t) => ({
-      id: t.id, channelId: t.channel_id, userId: t.user_id, userName: nm[t.user_id], reason: t.reason, reasonLabel: TICKET_REASONS[t.reason] || t.reason,
+      id: t.id, channelId: t.channel_id, userId: t.user_id, userName: nm[t.user_id], reason: t.reason, reasonLabel: reasonLabel(t.reason),
       orderId: t.order_id, status: t.status, createdAt: t.created_at, closedAt: t.closed_at, closedBy: t.closed_by, closedByName: nm[t.closed_by] ?? null,
     })),
   };
@@ -556,6 +561,119 @@ async function communityAction(kind, id, action, actor) {
   throw new HttpError(404, 'Ação desconhecida.');
 }
 
+
+/* ------------------------------ Canais do servidor ------------------------------ */
+
+async function guildOrNull() {
+  const client = getClient();
+  if (!client?.isReady()) return null;
+  return client.guilds.fetch(config.guildId).catch(() => null);
+}
+
+async function channelsList() {
+  const guild = await guildOrNull();
+  if (!guild) return [];
+  const chans = await guild.channels.fetch();
+  const me = guild.members.me;
+  return [...chans.values()].filter(Boolean)
+    .filter((c) => c.type === 0 || c.type === 5 || c.type === 4) // texto, anúncios, categoria
+    .sort((a, b) => (a.rawPosition ?? 0) - (b.rawPosition ?? 0))
+    .map((c) => ({
+      id: c.id, name: c.name, type: c.type === 4 ? 'category' : 'text', parent: c.parent?.name ?? null,
+      canSend: c.type === 4 ? null : Boolean(me && c.permissionsFor(me)?.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])),
+    }));
+}
+
+/* ------------------------------ Tickets: aparência e notas ------------------------------ */
+
+async function ticketConfigGet() {
+  const stats = ticketRatingStats(30);
+  const nm = await userNames([...stats.recent.flatMap((r) => [r.user_id, r.staff_id]), ...stats.byStaff.map((x) => x.staff_id)].filter(Boolean));
+  return {
+    config: getTicketConfig(),
+    defaults: DEFAULT_TICKET_CONFIG,
+    published: { channelId: getSetting('ticket_panel_channel'), messageId: getSetting('ticket_panel_message') },
+    ratingChannelId: getSetting('channel_ticket_reviews') || null,
+    reviewsChannelId: getSetting('channel_reviews') || null,
+    guildId: config.guildId,
+    ratings: {
+      count: stats.count, avg: stats.avg,
+      byStaff: stats.byStaff.map((x) => ({ staffId: x.staff_id, staffName: nm[x.staff_id] ?? null, n: x.n, avg: x.avg })),
+      recent: stats.recent.map((r) => ({
+        ticketId: r.ticket_id, userId: r.user_id, userName: nm[r.user_id] ?? null, staffId: r.staff_id, staffName: nm[r.staff_id] ?? null,
+        rating: r.rating, comment: r.comment, reason: reasonLabel(r.reason), createdAt: r.created_at,
+      })),
+    },
+  };
+}
+
+async function ticketConfigSave(body, actor) {
+  try {
+    saveTicketConfig(body, actor);
+  } catch (e) { bad(e.message); }
+  if (body.ratingChannelId !== undefined) setSetting('channel_ticket_reviews', body.ratingChannelId || null);
+  const refreshed = await refreshSupportPanel(getClient());
+  sendLog('admin', { title: 'Painel de tickets personalizado (painel web)', description: `por <@${actor}>` });
+  return { ok: true, message: refreshed ? 'Salvo! O painel publicado no Discord já foi atualizado.' : 'Configurações salvas.', data: await ticketConfigGet() };
+}
+
+async function ticketConfigPublish(body, actor) {
+  if (!body.channelId) bad('Escolha o canal.');
+  try {
+    await publishSupportPanel(getClient(), String(body.channelId));
+  } catch (e) { bad(e.message); }
+  audit(actor, 'tickets.publicar', `${body.channelId} (painel web)`);
+  return { ok: true, message: 'Painel publicado no Discord.', data: await ticketConfigGet() };
+}
+
+/* ------------------------------ Embeds ------------------------------ */
+
+const embedOut = (r) => ({ id: r.id, name: r.name, data: r.data, channelId: r.channel_id, messageId: r.message_id, createdAt: r.created_at, updatedAt: r.updated_at });
+
+async function embedValidate(body) {
+  let data;
+  try { data = EMB.normalizeEmbed(body.data || {}); } catch (e) { bad(e.message); }
+  if (data.buttons.some((b) => b.action === 'role')) {
+    const guild = await guildOrNull();
+    if (!guild) bad('O bot precisa estar online para validar os cargos.');
+    await guild.roles.fetch();
+    for (const b of data.buttons.filter((x) => x.action === 'role')) {
+      const p = EMB.roleProblem(guild, b.value);
+      if (p) bad(p);
+    }
+  }
+  return data;
+}
+
+async function embedSave(id, body, actor) {
+  const prev = id ? EMB.getEmbed(id) : null;
+  if (id && !prev) throw new HttpError(404, 'Embed não encontrado.');
+  const data = await embedValidate(body);
+  if (body.publish !== false && !(body.channelId || prev?.channel_id)) bad('Escolha o canal para publicar.');
+  const rec = EMB.saveEmbed({ id, name: body.name, data }, actor);
+  let message = 'Embed salvo.';
+  if (body.publish !== false) {
+    const target = body.channelId || rec.channel_id;
+    try {
+      const r = await EMB.publishEmbed(getClient(), rec, String(target));
+      message = r.edited ? 'Embed atualizado no Discord.' : 'Embed publicado no Discord.';
+    } catch (e) { bad(e.message); }
+  }
+  sendLog('admin', { title: `Embed ${prev ? 'editado' : 'criado'} (painel web)`, description: `**${rec.name}** por <@${actor}>` });
+  return { ok: true, message, embed: embedOut(EMB.getEmbed(rec.id)), list: EMB.listEmbeds().map(embedOut) };
+}
+
+async function embedDelete(id, actor) {
+  const rec = EMB.getEmbed(id);
+  if (!rec) throw new HttpError(404, 'Embed não encontrado.');
+  if (rec.channel_id && rec.message_id) {
+    const ch = await getClient()?.channels.fetch(rec.channel_id).catch(() => null);
+    await ch?.messages.fetch(rec.message_id).then((m) => m.delete()).catch(() => {});
+  }
+  EMB.deleteEmbedRecord(id, actor);
+  return { ok: true, message: 'Embed apagado.', list: EMB.listEmbeds().map(embedOut) };
+}
+
 /* ------------------------------ Exportação ------------------------------ */
 
 export function exportCsv(query) {
@@ -593,7 +711,6 @@ export async function routeApi(method, path, query, body, session) {
       categories: CATEGORIES, statuses: STATUS_LABEL, guildId: config.guildId,
       approvalsChannel: getSetting('channel_approvals'),
       paused: getSetting('store_paused') === '1',
-      ticketReasons: TICKET_REASONS,
     };
   }
   if (method === 'GET' && a === 'dashboard') return dashboard(query);
@@ -644,6 +761,23 @@ export async function routeApi(method, path, query, body, session) {
     if (method === 'PUT') return settingsSave(body, actor);
   }
   if (method === 'GET' && a === 'search') return quickSearch(query);
+  if (method === 'GET' && a === 'channels') return channelsList();
+  if (a === 'ticket-config') {
+    if (method === 'GET' && !b) return ticketConfigGet();
+    if (method === 'PUT' && !b) return ticketConfigSave(body, actor);
+    if (method === 'POST' && b === 'publish') return ticketConfigPublish(body, actor);
+    if (method === 'POST' && b === 'reset') {
+      resetTicketConfig(actor);
+      await refreshSupportPanel(getClient());
+      return { ok: true, message: 'Configurações salvas.', data: await ticketConfigGet() };
+    }
+  }
+  if (a === 'embeds') {
+    if (method === 'GET' && !b) return EMB.listEmbeds().map(embedOut);
+    if (method === 'POST' && !b) return embedSave(null, body, actor);
+    if (method === 'PUT' && b) return embedSave(Number(b), body, actor);
+    if (method === 'POST' && b && c === 'delete') return embedDelete(Number(b), actor);
+  }
   if (a === 'community') {
     if (method === 'GET' && !b) return communityData();
     if (method === 'POST' && b && c && seg[3]) return communityAction(b, c, seg[3], actor);

@@ -136,6 +136,7 @@
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.7 5.7 3.7 9s-1.2 6.3-3.7 9c-2.5-2.7-3.7-5.7-3.7-9S9.5 5.7 12 3z"/>',
     server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
     edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+    layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
     trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M8 20h8M10 17h4v3h-4z"/>',
     music: '<path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
     film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
@@ -776,23 +777,440 @@
   /* ============================== Tickets ============================== */
 
   let ticketTab = 'aberto';
-  async function pageTickets() {
+  const TICKET_TABS = ['aberto', 'fechado', 'notas', 'personalizar'];
+  async function pageTickets(params) {
+    if (params?.has('tab') && TICKET_TABS.includes(params.get('tab'))) ticketTab = params.get('tab');
     setTitle('nav.tickets');
     loading();
+    const tabs = (counts = {}) => `<div class="chips" role="tablist">
+      <button class="chip ${ticketTab === 'aberto' ? 'on' : ''}" data-ttab="aberto">${t('tickets.tab.open')}${counts.aberto != null ? ` <b>${counts.aberto}</b>` : ''}</button>
+      <button class="chip ${ticketTab === 'fechado' ? 'on' : ''}" data-ttab="fechado">${t('tickets.tab.closed')}${counts.fechado != null ? ` <b>${counts.fechado}</b>` : ''}</button>
+      <button class="chip ${ticketTab === 'notas' ? 'on' : ''}" data-ttab="notas">${icon('star')}<span>${t('tickets.tab.ratings')}</span></button>
+      <button class="chip ${ticketTab === 'personalizar' ? 'on' : ''}" data-ttab="personalizar">${icon('edit')}<span>${t('tickets.tab.customize')}</span></button></div>`;
+    const bindTabs = () => $$('[data-ttab]', view).forEach((b) => b.addEventListener('click', () => { ticketTab = b.dataset.ttab; pageTickets().catch(failed); }));
+
+    if (ticketTab === 'notas' || ticketTab === 'personalizar') {
+      const [cfg, channels] = await Promise.all([api('ticket-config'), ticketTab === 'personalizar' ? api('channels').catch(() => []) : Promise.resolve([])]);
+      view.innerHTML = tabs() + '<div id="tk-body"></div>';
+      bindTabs();
+      if (ticketTab === 'notas') renderTicketRatings(cfg);
+      else renderTicketCustomize(cfg, channels);
+      return;
+    }
+
     const d = await api(`tickets?status=${ticketTab}`);
-    view.innerHTML = `
-      <div class="chips"><button class="chip ${ticketTab === 'aberto' ? 'on' : ''}" data-ttab="aberto">${t('tickets.tab.open')} <b>${d.counts.aberto || 0}</b></button>
-        <button class="chip ${ticketTab === 'fechado' ? 'on' : ''}" data-ttab="fechado">${t('tickets.tab.closed')} <b>${d.counts.fechado || 0}</b></button></div>
+    view.innerHTML = `${tabs(d.counts)}
       ${d.items.length ? `<div class="card"><div class="list">${d.items.map((tk) => `
         <div class="row static">
           ${avatarDot(tk.userName, tk.userId)}
-          <div class="grow"><div class="title">#${tk.id} · ${esc(t(`reason.${tk.reason}`))}</div>
+          <div class="grow"><div class="title">#${tk.id} · ${esc(tk.reasonLabel || t(`reason.${tk.reason}`))}</div>
             <div class="meta"><a href="#" data-customer="${esc(tk.userId)}">${who(tk.userId, tk.userName)}</a>${tk.orderId ? ` · <a href="#" data-order="${esc(tk.orderId)}" class="mono">${esc(tk.orderId)}</a>` : ''} · ${ticketTab === 'aberto' ? ago(tk.createdAt) : t('tickets.closedby', { w: who(tk.closedBy, tk.closedByName), d: ago(tk.closedAt) })}</div></div>
           ${ticketTab === 'aberto' && tk.channelId ? `<a class="btn small" href="https://discord.com/channels/${d.guildId}/${tk.channelId}" target="_blank" rel="noopener">${icon('external')}<span>${t('tickets.open')}</span></a>` : ''}
         </div>`).join('')}</div></div>` : emptyState('ticket', t(ticketTab === 'aberto' ? 'tickets.none.open' : 'tickets.none.closed'))}`;
-    $$('[data-ttab]', view).forEach((b) => b.addEventListener('click', () => { ticketTab = b.dataset.ttab; pageTickets().catch(failed); }));
+    bindTabs();
   }
 
+  function renderTicketRatings(cfg) {
+    const r = cfg.ratings;
+    const dist = [5, 4, 3, 2, 1].map((n) => ({ n, c: r.recent.filter((x) => x.rating === n).length }));
+    $('#tk-body').innerHTML = r.count ? `
+      <div class="grid two rev">
+        <section class="card rating-card"><div class="big-rating mono">${r.avg.toFixed(1)}</div><div class="stars lg">${stars(Math.round(r.avg))}</div>
+          <div class="muted">${plural(r.count, 'reviews.count1', 'reviews.countN')}</div>
+          <div class="dist">${dist.map((x) => `<div class="dist-row"><span>${x.n}★</span><div class="hbar-track"><i style="width:${r.recent.length ? (x.c / r.recent.length) * 100 : 0}%"></i></div><span class="mono">${x.c}</span></div>`).join('')}</div>
+          ${r.byStaff.length ? `<div class="staff-rank"><h3>${t('tickets.staff')}</h3>${r.byStaff.map((x, i) => `<div class="row-gap between"><span><span class="mono muted">${i + 1}.</span> ${who(x.staffId, x.staffName)}</span><span class="mono">${x.avg.toFixed(1)} ★ <small class="muted">(${x.n})</small></span></div>`).join('')}</div>` : ''}
+        </section>
+        <section class="card"><div class="list">${r.recent.map((x) => `
+          <div class="row static">
+            <div class="grow"><div><span class="stars">${stars(x.rating)}</span> <span class="muted">· ${esc(x.reason)} · #${x.ticketId}</span></div>
+              <div class="quote">${x.comment ? `“${esc(x.comment)}”` : `<span class="muted">${t('reviews.nocomment')}</span>`}</div>
+              <div class="meta"><a href="#" data-customer="${esc(x.userId)}">${who(x.userId, x.userName)}</a>${x.staffId ? ` → ${who(x.staffId, x.staffName)}` : ''} · ${ago(x.createdAt)}</div></div>
+          </div>`).join('')}</div></section>
+      </div>` : emptyState('star', t('tickets.ratings.none'), t('tickets.ratings.hint'));
+  }
+
+  /* ----------- Prévia no estilo Discord (painel de tickets e embeds) ----------- */
+
+  function md(text) {
+    let h = esc(text || '');
+    h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/__(.+?)__/g, '<u>$1</u>').replace(/\*(.+?)\*/g, '<i>$1</i>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>').replace(/^&gt; (.*)$/gm, '<blockquote>$1</blockquote>')
+      .replace(/^### (.*)$/gm, '<strong class="h3">$1</strong>').replace(/^## (.*)$/gm, '<strong class="h2">$1</strong>').replace(/^# (.*)$/gm, '<strong class="h1">$1</strong>')
+      .replace(/&lt;@&amp;?(\d+)&gt;/g, '<span class="mention">@$1</span>').replace(/&lt;#(\d+)&gt;/g, '<span class="mention">#canal</span>')
+      .replace(/\{(usuario|motivo|servidor)\}/g, '<span class="mention">{$1}</span>');
+    return h.replace(/\n/g, '<br>');
+  }
+  const safeUrl = (u) => (/^https?:\/\//i.test(u || '') ? esc(u) : '');
+  const emojiHtml = (e) => (!e ? '' : /^<a?:\w+:(\d+)>$/.test(e) ? `<img class="emj" src="https://cdn.discordapp.com/emojis/${e.match(/(\d+)>$/)[1]}.webp?size=32" alt="">` : `<span class="emj">${esc(e)}</span>`);
+
+  function discordPreview(d, { select = null, buttons = [], botName = ME?.store.bot || 'Paany', content = '' } = {}) {
+    const color = /^#[0-9a-f]{6}$/i.test(d.color || '') ? d.color : '#f2f2f2';
+    const btnRows = [];
+    buttons.forEach((b, i) => { if (i % 5 === 0) btnRows.push([]); btnRows[btnRows.length - 1].push(b); });
+    return `<div class="dc">
+      <img class="dc-av" src="/painel/logo.png" alt="">
+      <div class="dc-main">
+        <div class="dc-head"><b>${esc(botName)}</b><span class="dc-bot">BOT</span><small>${t('preview.today')}</small></div>
+        ${content ? `<div class="dc-content">${md(content)}</div>` : ''}
+        <div class="dc-embed" style="border-color:${color}">
+          <div class="dc-embed-body">
+            ${d.author ? `<div class="dc-author">${esc(d.author)}</div>` : ''}
+            ${d.title ? `<div class="dc-title">${d.url ? `<a href="${safeUrl(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` : esc(d.title)}</div>` : ''}
+            ${d.description ? `<div class="dc-desc">${md(d.description)}</div>` : ''}
+            ${d.image ? `<img class="dc-image" src="${safeUrl(d.image)}" alt="" loading="lazy">` : ''}
+            ${d.footer || d.timestamp ? `<div class="dc-footer">${d.footerIcon ? '<img src="/painel/logo.png" alt="">' : ''}${esc(d.footer || '')}${d.footer && d.timestamp ? ' • ' : ''}${d.timestamp ? t('preview.today') : ''}</div>` : ''}
+          </div>
+          ${d.thumbnail ? `<img class="dc-thumb" src="${d.thumbnail === 'logo' ? '/painel/logo.png' : safeUrl(d.thumbnail)}" alt="">` : ''}
+        </div>
+        ${select ? `<div class="dc-select"><span>${esc(select.placeholder)}</span>${icon('down')}</div>
+          <div class="dc-options">${select.options.map((o) => `<div class="dc-opt">${emojiHtml(o.emoji)}<div><b>${esc(o.label)}</b>${o.description ? `<small>${esc(o.description)}</small>` : ''}</div></div>`).join('')}</div>` : ''}
+        ${btnRows.map((row) => `<div class="dc-btns">${row.map((b) => `<span class="dc-btn ${b.action === 'link' ? 'link' : b.style || 'secondary'}">${emojiHtml(b.emoji)}${esc(b.label)}${b.action === 'link' ? icon('external') : ''}</span>`).join('')}</div>`).join('')}
+      </div></div>`;
+  }
+
+  const channelOptions = (channels, selected, { placeholder = t('ch.choose'), allowEmpty = true } = {}) =>
+    `${allowEmpty ? `<option value="">${esc(placeholder)}</option>` : ''}${channels.filter((c) => c.type === 'text').map((c) =>
+      `<option value="${esc(c.id)}" ${c.id === selected ? 'selected' : ''} ${c.canSend === false ? 'disabled' : ''}>#${esc(c.name)}${c.parent ? ` · ${esc(c.parent)}` : ''}${c.canSend === false ? ` (${t('ch.noperm')})` : ''}</option>`).join('')}`;
+
+  async function uploadInto(inputEl, onDone) {
+    const pick = document.createElement('input');
+    pick.type = 'file'; pick.accept = 'image/png,image/jpeg,image/gif,image/webp';
+    pick.addEventListener('change', async () => {
+      const file = pick.files[0];
+      if (!file) return;
+      if (file.size > 3 * 1024 * 1024) { toast(t('pf.upload.big'), 'err'); return; }
+      const data = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); });
+      try {
+        const { url } = await api('upload', { method: 'POST', body: { data } });
+        inputEl.value = url; inputEl.dispatchEvent(new Event('input', { bubbles: true })); toast(t('pf.upload.ok')); onDone?.();
+      } catch (e) { toast(e.message, 'err'); }
+    });
+    pick.click();
+  }
+
+  /* ----------------------------- Personalizar tickets ----------------------------- */
+
+  function renderTicketCustomize(data, channels) {
+    const c = JSON.parse(JSON.stringify(data.config));
+    let previewTab = 'panel';
+    const box = $('#tk-body');
+    box.innerHTML = `
+      <div class="builder">
+        <form class="builder-form" id="tkform" novalidate>
+          <section class="card"><div class="card-head"><h2>${t('tc.panel')}</h2></div>
+            <div class="form">
+              <label class="field full">${t('tc.title')}<input data-k="panel.title" maxlength="256" value="${esc(c.panel.title)}"></label>
+              <label class="field full">${t('tc.description')}<textarea data-k="panel.description" rows="5" maxlength="4000">${esc(c.panel.description)}</textarea>
+                <span class="hint">${t('tc.md')}</span></label>
+              <label class="field full">${t('tc.banner')}<div class="affix"><input data-k="panel.banner" placeholder="https://..." value="${esc(c.panel.banner)}"><button class="btn small" type="button" data-up="panel.banner">${icon('download')}<span>${t('pf.upload')}</span></button></div>
+                <span class="hint">${t('tc.banner.hint')}</span></label>
+              <label class="field">${t('tc.color')}<div class="affix color"><input type="color" data-k="panel.color" value="${esc(c.panel.color)}"><input data-k="panel.color" class="mono" maxlength="7" value="${esc(c.panel.color)}"></div></label>
+              <label class="field">${t('tc.placeholder')}<input data-k="panel.placeholder" maxlength="150" value="${esc(c.panel.placeholder)}"></label>
+              <label class="field">${t('tc.footer')}<input data-k="panel.footer" maxlength="200" placeholder="${esc(ME.store.bot)} • ${esc(ME.store.name)}" value="${esc(c.panel.footer)}"></label>
+              <label class="field switch-field"><span>${t('tc.thumb')}</span><span class="switch"><input type="checkbox" data-k="panel.thumbnail" ${c.panel.thumbnail ? 'checked' : ''}><i></i></span></label>
+            </div>
+          </section>
+
+          <section class="card"><div class="card-head"><h2>${t('tc.options')}</h2><span class="muted mono" id="opt-count"></span></div>
+            <p class="hint">${t('tc.options.hint')}</p>
+            <div class="opt-list" id="opt-list"></div>
+            <button class="btn small" type="button" id="opt-add">${icon('plus')}<span>${t('tc.options.add')}</span></button>
+          </section>
+
+          <section class="card"><div class="card-head"><h2>${t('tc.welcome')}</h2></div>
+            <div class="form">
+              <label class="field full">${t('tc.welcome.title')}<input data-k="welcome.title" maxlength="200" value="${esc(c.welcome.title)}"></label>
+              <label class="field full">${t('tc.welcome.message')}<textarea data-k="welcome.message" rows="4" maxlength="2000">${esc(c.welcome.message)}</textarea>
+                <span class="hint">${t('tc.vars')} <code>{usuario}</code> <code>{motivo}</code> <code>{servidor}</code></span></label>
+            </div>
+          </section>
+
+          <section class="card"><div class="card-head"><h2>${t('tc.rating')}</h2></div>
+            <p class="hint">${t('tc.rating.hint')}</p>
+            <div class="form">
+              <label class="field switch-field full"><span>${t('tc.rating.on')}</span><span class="switch"><input type="checkbox" data-k="rating.enabled" ${c.rating.enabled ? 'checked' : ''}><i></i></span></label>
+              <label class="field full">${t('tc.rating.message')}<textarea data-k="rating.message" rows="3" maxlength="1000">${esc(c.rating.message)}</textarea></label>
+              <label class="field full">${t('tc.rating.channel')}<select id="rating-ch">${channelOptions(channels, data.ratingChannelId, { placeholder: data.reviewsChannelId ? t('tc.rating.channel.fallback') : t('ch.choose') })}</select></label>
+            </div>
+          </section>
+
+          <div class="builder-actions">
+            <button class="btn primary" type="submit">${icon('check')}<span>${t('act.save')}</span></button>
+            <button class="btn ghost" type="button" id="tk-reset">${t('tc.reset')}</button>
+          </div>
+
+          <section class="card"><div class="card-head"><h2>${t('tc.publish')}</h2>${data.published.channelId ? `<span class="pill ok"><i></i>${t('tc.published')}</span>` : `<span class="pill off"><i></i>${t('tc.notpublished')}</span>`}</div>
+            <p class="hint">${data.published.channelId ? t('tc.publish.auto') : t('tc.publish.hint')}</p>
+            <div class="row-gap"><select id="pub-ch" style="flex:1;min-width:200px">${channelOptions(channels, data.published.channelId)}</select>
+              <button class="btn" type="button" id="tk-publish">${icon('external')}<span>${t('tc.publish.btn')}</span></button>
+              ${data.published.channelId && data.published.messageId ? `<a class="btn ghost" href="https://discord.com/channels/${data.guildId}/${data.published.channelId}/${data.published.messageId}" target="_blank" rel="noopener">${t('community.open.discord')}</a>` : ''}</div>
+          </section>
+        </form>
+
+        <aside class="builder-preview">
+          <div class="seg wide" role="tablist">
+            <button type="button" data-pv="panel" class="on">${t('tc.pv.panel')}</button>
+            <button type="button" data-pv="welcome">${t('tc.pv.welcome')}</button>
+            <button type="button" data-pv="rating">${t('tc.pv.rating')}</button>
+          </div>
+          <div class="preview-surface" id="tk-preview"></div>
+          <p class="hint">${t('preview.hint')}</p>
+        </aside>
+      </div>`;
+
+    const get = (path) => path.split('.').reduce((o, k) => o[k], c);
+    const set = (path, v) => { const ks = path.split('.'); ks.slice(0, -1).reduce((o, k) => o[k], c)[ks.at(-1)] = v; };
+    const firstEnabled = () => c.options.find((o) => o.enabled) || { label: '—' };
+    const renderPreview = () => {
+      const el = $('#tk-preview');
+      if (previewTab === 'panel') {
+        el.innerHTML = discordPreview({ title: c.panel.title, description: c.panel.description, color: c.panel.color, image: c.panel.banner, thumbnail: c.panel.thumbnail ? 'logo' : '', footer: c.panel.footer || `${ME.store.bot} • ${ME.store.name}`, footerIcon: true },
+          { select: { placeholder: c.panel.placeholder, options: c.options.filter((o) => o.enabled) } });
+      } else if (previewTab === 'welcome') {
+        const fill = (s) => s.replace(/\{motivo\}/g, firstEnabled().label).replace(/\{servidor\}/g, ME.store.name);
+        el.innerHTML = discordPreview({ title: fill(c.welcome.title).replace(/\{usuario\}/g, ME.name), description: fill(c.welcome.message).replace(/\{usuario\}/g, `@${ME.name}`), color: c.panel.color, thumbnail: 'logo', footer: `${ME.store.bot} • ${ME.store.name}`, footerIcon: true },
+          { content: `@${ME.name}`, buttons: [{ label: t('tc.btn.claim'), style: 'secondary' }, { label: t('tc.btn.call'), style: 'secondary' }, { label: t('tc.btn.close'), style: 'danger' }] });
+      } else {
+        el.innerHTML = c.rating.enabled ? discordPreview({ title: t('tc.rating.title'), description: c.rating.message, color: c.panel.color, thumbnail: 'logo', footer: `${ME.store.name} • ${t('tc.rating.footer')}`, footerIcon: true },
+          { buttons: [1, 2, 3, 4, 5].map((n) => ({ label: `${n} ★`, style: n >= 4 ? 'success' : n <= 2 ? 'danger' : 'secondary' })) })
+          : emptyState('star', t('tc.rating.off'));
+      }
+    };
+    const renderOptions = () => {
+      $('#opt-count').textContent = `${c.options.length}/20`;
+      $('#opt-list').innerHTML = c.options.map((o, i) => `
+        <div class="opt ${o.enabled ? '' : 'off'}" data-i="${i}">
+          <input class="opt-emoji" data-o="emoji" maxlength="64" placeholder="🙂" value="${esc(o.emoji)}" aria-label="${t('tc.opt.emoji')}">
+          <div class="opt-text"><input data-o="label" maxlength="100" placeholder="${t('tc.opt.label')}" value="${esc(o.label)}">
+            <input data-o="description" maxlength="100" placeholder="${t('tc.opt.desc')}" value="${esc(o.description)}"></div>
+          <div class="opt-tools">
+            <label class="switch" title="${t('tc.opt.enabled')}"><input type="checkbox" data-o="enabled" ${o.enabled ? 'checked' : ''}><i></i></label>
+            <button class="mini-btn" type="button" data-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="↑">${icon('up')}</button>
+            <button class="mini-btn" type="button" data-move="1" ${i === c.options.length - 1 ? 'disabled' : ''} aria-label="↓">${icon('down')}</button>
+            <button class="mini-btn danger" type="button" data-del aria-label="${t('tc.opt.remove')}">${icon('x')}</button>
+          </div>
+        </div>`).join('');
+      $('#opt-add').disabled = c.options.length >= 20;
+    };
+    renderOptions();
+    renderPreview();
+
+    const form = $('#tkform');
+    form.addEventListener('input', (e) => {
+      const k = e.target.dataset.k;
+      if (k) {
+        const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+        set(k, v);
+        if (k === 'panel.color') $$(`[data-k="panel.color"]`, form).forEach((x) => { if (x !== e.target && /^#[0-9a-f]{6}$/i.test(v)) x.value = v; });
+      }
+      const row = e.target.closest('.opt');
+      if (row && e.target.dataset.o) {
+        const o = c.options[Number(row.dataset.i)];
+        o[e.target.dataset.o] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+        if (e.target.dataset.o === 'enabled') row.classList.toggle('off', !e.target.checked);
+      }
+      renderPreview();
+    });
+    form.addEventListener('change', (e) => { if (e.target.type === 'checkbox') form.dispatchEvent(new Event('input', { bubbles: true })); });
+    $('#opt-list').addEventListener('click', (e) => {
+      const row = e.target.closest('.opt');
+      if (!row) return;
+      const i = Number(row.dataset.i);
+      const mv = e.target.closest('[data-move]');
+      if (mv) { const j = i + Number(mv.dataset.move); [c.options[i], c.options[j]] = [c.options[j], c.options[i]]; renderOptions(); renderPreview(); }
+      if (e.target.closest('[data-del]')) { c.options.splice(i, 1); renderOptions(); renderPreview(); }
+    });
+    $('#opt-add').addEventListener('click', () => {
+      c.options.push({ value: '', label: '', description: '', emoji: '', enabled: true });
+      renderOptions(); renderPreview();
+      $$('#opt-list .opt').at(-1)?.querySelector('[data-o="label"]').focus();
+    });
+    $$('[data-up]', form).forEach((b) => b.addEventListener('click', () => uploadInto(form.querySelector(`input[data-k="${b.dataset.up}"]`))));
+    $$('[data-pv]', box).forEach((b) => b.addEventListener('click', () => { previewTab = b.dataset.pv; $$('[data-pv]', box).forEach((x) => x.classList.toggle('on', x === b)); renderPreview(); }));
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('[type=submit]');
+      btn.disabled = true; btn.classList.add('busy');
+      try {
+        const r = await api('ticket-config', { method: 'PUT', body: { ...c, ratingChannelId: $('#rating-ch').value } });
+        toast(r.message);
+        renderTicketCustomize(r.data, channels);
+      } catch (err) { toast(err.message, 'err'); btn.disabled = false; btn.classList.remove('busy'); }
+    });
+    $('#tk-publish').addEventListener('click', async () => {
+      const ch = $('#pub-ch').value;
+      if (!ch) { toast(t('ch.choose'), 'err'); return; }
+      try {
+        await api('ticket-config', { method: 'PUT', body: { ...c, ratingChannelId: $('#rating-ch').value } });
+        const r = await api('ticket-config/publish', { method: 'POST', body: { channelId: ch } });
+        toast(r.message); renderTicketCustomize(r.data, channels);
+      } catch (err) { toast(err.message, 'err'); }
+    });
+    $('#tk-reset').addEventListener('click', async () => {
+      if (!await ask({ title: t('tc.reset.q'), body: t('tc.reset.body'), confirm: t('tc.reset'), danger: true })) return;
+      try { const r = await api('ticket-config/reset', { method: 'POST', body: {} }); toast(r.message); renderTicketCustomize(r.data, channels); } catch (err) { toast(err.message, 'err'); }
+    });
+  }
+
+  /* ============================== Embeds ============================== */
+
+  const EMBED_TEMPLATES = {
+    blank: { title: '', description: '', color: '#f2f2f2', buttons: [] },
+    rules: { title: '📜 Regras do servidor', description: '**1.** Respeite todos os membros.\n**2.** Sem spam ou divulgação sem permissão.\n**3.** Conteúdos pagos são pessoais: não compartilhe.\n**4.** Dúvidas? Abra um ticket.', color: '#f2f2f2', footer: 'A equipe agradece!', buttons: [{ label: 'Abrir ticket', emoji: '🎫', action: 'ticket', style: 'secondary' }] },
+    welcome: { title: 'Bem-vindo(a) à Cutify!', description: 'Aqui você encontra **VIPs, CCs, presets e cursos** de edição.\n\nComece pela loja e fique de olho nos anúncios.', color: '#f2f2f2', image: '', buttons: [{ label: 'Abrir loja', emoji: '🛒', action: 'store', style: 'primary' }, { label: 'Suporte', emoji: '💬', action: 'ticket', style: 'secondary' }] },
+    announce: { title: '📢 Novidade na loja', description: 'Chegou um pack novo! Confira na loja com **10% de desconto** usando o cupom `CUTIFY10`.', color: '#f2f2f2', timestamp: true, buttons: [{ label: 'Ver na loja', emoji: '🛒', action: 'store', style: 'success' }] },
+    roles: { title: 'Escolha seus cargos', description: 'Clique para receber (ou tirar) o cargo de notificações.', color: '#f2f2f2', buttons: [] },
+  };
+
+  async function pageEmbeds(params) {
+    const id = params.get('id');
+    if (id) return embedBuilder(id === 'new' ? null : Number(id), params.get('tpl'));
+    setTitle('nav.embeds', `<a class="btn primary" href="#/embeds?id=new">${icon('plus')}<span>${t('emb.new')}</span></a>`);
+    loading();
+    const list = await api('embeds');
+    view.innerHTML = `
+      <section class="card"><div class="card-head"><h2>${t('emb.templates')}</h2></div>
+        <div class="tpl-grid">${Object.keys(EMBED_TEMPLATES).map((k) => `<a class="tpl" href="#/embeds?id=new&tpl=${k}">${icon(k === 'blank' ? 'plus' : k === 'roles' ? 'crown' : k === 'rules' ? 'orders' : k === 'announce' ? 'alert' : 'home')}<span>${t(`emb.tpl.${k}`)}</span></a>`).join('')}</div>
+      </section>
+      ${list.length ? `<div class="grid emb-grid">${list.map((r) => `
+        <article class="card emb-card">
+          <a class="emb-hit" href="#/embeds?id=${r.id}" aria-label="${t('act.edit')} ${esc(r.name)}"></a>
+          <div class="emb-mini" style="border-color:${/^#[0-9a-f]{6}$/i.test(r.data.color) ? r.data.color : '#f2f2f2'}">
+            ${r.data.title ? `<b>${esc(r.data.title)}</b>` : ''}<p>${esc((r.data.description || '').slice(0, 140))}</p>
+            ${r.data.image ? `<img src="${safeUrl(r.data.image)}" alt="" loading="lazy">` : ''}
+          </div>
+          <div class="emb-foot"><div class="grow"><div class="title">${esc(r.name)}</div><div class="meta">${r.channelId ? t('emb.published') : t('emb.draft')} · ${plural(r.data.buttons.length, 'emb.btn1', 'emb.btnN')} · ${ago(r.updatedAt)}</div></div>
+            ${r.channelId && r.messageId ? `<a class="mini-btn" href="https://discord.com/channels/${ME.guildId}/${r.channelId}/${r.messageId}" target="_blank" rel="noopener" aria-label="${t('community.open.discord')}">${icon('external')}</a>` : ''}</div>
+        </article>`).join('')}</div>` : emptyState('layers', t('emb.none'), t('emb.none.hint'))}`;
+  }
+
+  async function embedBuilder(id, tpl) {
+    setTitle(id ? 'emb.edit' : 'emb.new', `<a class="btn ghost" href="#/embeds">← ${t('act.back')}</a>`);
+    loading();
+    const [list, channels, roles] = await Promise.all([id ? api('embeds') : Promise.resolve([]), api('channels').catch(() => []), api('roles').catch(() => [])]);
+    const rec = id ? list.find((x) => x.id === id) : null;
+    if (id && !rec) { view.innerHTML = emptyState('alert', t('emb.notfound'), '', `<a class="btn" href="#/embeds">${t('act.back')}</a>`); return; }
+    const base = rec ? rec.data : (EMBED_TEMPLATES[tpl] || EMBED_TEMPLATES.blank);
+    const d = { title: '', url: '', description: '', color: '#f2f2f2', image: '', thumbnail: '', author: '', footer: '', timestamp: false, content: '', ...JSON.parse(JSON.stringify(base)) };
+    d.buttons = (d.buttons || []).map((b) => ({ label: '', emoji: '', action: 'link', value: '', style: 'secondary', ...b }));
+    let name = rec?.name || '';
+    const assignable = roles.filter((r) => r.assignable);
+
+    view.innerHTML = `
+      <div class="builder">
+        <form class="builder-form" id="embform" novalidate>
+          <section class="card"><div class="form">
+            <label class="field">${t('emb.name')}<input id="emb-name" maxlength="80" placeholder="${t('emb.name.ph')}" value="${esc(name)}"></label>
+            <label class="field">${t('emb.channel')}<select id="emb-ch">${channelOptions(channels, rec?.channelId)}</select></label>
+          </div></section>
+          <section class="card"><div class="card-head"><h2>${t('emb.content')}</h2></div><div class="form">
+            <label class="field full">${t('emb.text')}<textarea data-k="content" rows="2" maxlength="2000" placeholder="${t('emb.text.ph')}">${esc(d.content)}</textarea></label>
+            <label class="field">${t('emb.author')}<input data-k="author" maxlength="256" value="${esc(d.author)}"></label>
+            <label class="field">${t('tc.color')}<div class="affix color"><input type="color" data-k="color" value="${esc(d.color)}"><input data-k="color" class="mono" maxlength="7" value="${esc(d.color)}"></div></label>
+            <label class="field full">${t('tc.title')}<input data-k="title" maxlength="256" value="${esc(d.title)}"></label>
+            <label class="field full">${t('emb.url')}<input data-k="url" placeholder="https://..." value="${esc(d.url)}"></label>
+            <label class="field full">${t('tc.description')}<textarea data-k="description" rows="7" maxlength="4000">${esc(d.description)}</textarea>
+              <span class="hint"><span id="desc-count"></span> · ${t('tc.md')}</span></label>
+            <label class="field full">${t('emb.image')}<div class="affix"><input data-k="image" placeholder="https://..." value="${esc(d.image)}"><button class="btn small" type="button" data-up="image">${icon('download')}<span>${t('pf.upload')}</span></button></div></label>
+            <label class="field full">${t('emb.thumb')}<div class="affix"><input data-k="thumbnail" placeholder="https://..." value="${esc(d.thumbnail)}"><button class="btn small" type="button" data-up="thumbnail">${icon('download')}<span>${t('pf.upload')}</span></button></div></label>
+            <label class="field">${t('tc.footer')}<input data-k="footer" maxlength="2048" value="${esc(d.footer)}"></label>
+            <label class="field switch-field"><span>${t('emb.timestamp')}</span><span class="switch"><input type="checkbox" data-k="timestamp" ${d.timestamp ? 'checked' : ''}><i></i></span></label>
+          </div></section>
+          <section class="card"><div class="card-head"><h2>${t('emb.buttons')}</h2><span class="muted mono" id="btn-count"></span></div>
+            <p class="hint">${t('emb.buttons.hint')}</p>
+            <div class="btn-list" id="btn-list"></div>
+            <button class="btn small" type="button" id="btn-add">${icon('plus')}<span>${t('emb.buttons.add')}</span></button>
+          </section>
+          <div class="builder-actions">
+            <button class="btn primary" type="submit" data-publish="1">${icon('external')}<span>${t(rec?.channelId ? 'emb.update' : 'emb.publish')}</span></button>
+            <button class="btn" type="submit" data-publish="0">${t('emb.saveonly')}</button>
+            ${rec ? `<button class="btn danger" type="button" id="emb-del">${t('emb.delete')}</button>` : ''}
+          </div>
+        </form>
+        <aside class="builder-preview"><div class="preview-surface" id="emb-preview"></div><p class="hint">${t('preview.hint')}</p></aside>
+      </div>`;
+
+    const form = $('#embform');
+    const renderPreview = () => {
+      $('#emb-preview').innerHTML = discordPreview(d, { buttons: d.buttons, content: d.content });
+      $('#desc-count').textContent = `${d.description.length}/4000`;
+    };
+    const renderButtons = () => {
+      $('#btn-count').textContent = `${d.buttons.length}/10`;
+      $('#btn-list').innerHTML = d.buttons.map((b, i) => `
+        <div class="ebtn" data-i="${i}">
+          <div class="ebtn-row">
+            <input class="opt-emoji" data-b="emoji" maxlength="64" placeholder="🙂" value="${esc(b.emoji)}" aria-label="${t('tc.opt.emoji')}">
+            <input data-b="label" maxlength="80" placeholder="${t('emb.btn.label')}" value="${esc(b.label)}">
+            <select data-b="action">${['link', 'store', 'ticket', 'role'].map((a) => `<option value="${a}" ${b.action === a ? 'selected' : ''}>${t(`emb.act.${a}`)}</option>`).join('')}</select>
+          </div>
+          <div class="ebtn-row">
+            ${b.action === 'link' ? `<input data-b="value" placeholder="https://..." value="${esc(b.value)}">` : ''}
+            ${b.action === 'role' ? `<select data-b="value"><option value="">${t('emb.btn.role')}</option>${assignable.map((r) => `<option value="${esc(r.id)}" ${r.id === b.value ? 'selected' : ''}>@${esc(r.name)}</option>`).join('')}</select>` : ''}
+            ${b.action !== 'link' ? `<select data-b="style">${['primary', 'secondary', 'success', 'danger'].map((st) => `<option value="${st}" ${b.style === st ? 'selected' : ''}>${t(`emb.style.${st}`)}</option>`).join('')}</select>` : ''}
+            <span class="grow"></span>
+            <button class="mini-btn" type="button" data-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="↑">${icon('up')}</button>
+            <button class="mini-btn" type="button" data-move="1" ${i === d.buttons.length - 1 ? 'disabled' : ''} aria-label="↓">${icon('down')}</button>
+            <button class="mini-btn danger" type="button" data-del aria-label="${t('tc.opt.remove')}">${icon('x')}</button>
+          </div>
+          ${b.action === 'role' && !assignable.length ? `<p class="hint">${t('emb.btn.norole')}</p>` : ''}
+        </div>`).join('');
+      $('#btn-add').disabled = d.buttons.length >= 10;
+    };
+    renderButtons();
+    renderPreview();
+
+    form.addEventListener('input', (e) => {
+      const k = e.target.dataset.k;
+      if (k) {
+        d[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+        if (k === 'color') $$('[data-k="color"]', form).forEach((x) => { if (x !== e.target && /^#[0-9a-f]{6}$/i.test(d.color)) x.value = d.color; });
+      }
+      const row = e.target.closest('.ebtn');
+      if (row && e.target.dataset.b) {
+        const b = d.buttons[Number(row.dataset.i)];
+        b[e.target.dataset.b] = e.target.value;
+        if (e.target.dataset.b === 'action') { b.value = ''; if (b.action === 'store') b.style = 'primary'; if (b.action === 'role') b.style = 'success'; renderButtons(); }
+      }
+      renderPreview();
+    });
+    form.addEventListener('change', (e) => { if (e.target.tagName === 'SELECT' || e.target.type === 'checkbox') form.dispatchEvent(new Event('input', { bubbles: true })); });
+    $('#emb-name').addEventListener('input', (e) => { name = e.target.value; });
+    $('#btn-list').addEventListener('click', (e) => {
+      const row = e.target.closest('.ebtn');
+      if (!row) return;
+      const i = Number(row.dataset.i);
+      const mv = e.target.closest('[data-move]');
+      if (mv) { const j = i + Number(mv.dataset.move); [d.buttons[i], d.buttons[j]] = [d.buttons[j], d.buttons[i]]; renderButtons(); renderPreview(); }
+      if (e.target.closest('[data-del]')) { d.buttons.splice(i, 1); renderButtons(); renderPreview(); }
+    });
+    $('#btn-add').addEventListener('click', () => {
+      d.buttons.push({ label: '', emoji: '', action: tpl === 'roles' ? 'role' : 'link', value: '', style: tpl === 'roles' ? 'success' : 'secondary' });
+      renderButtons(); renderPreview();
+      $$('#btn-list .ebtn').at(-1)?.querySelector('[data-b="label"]').focus();
+    });
+    $$('[data-up]', form).forEach((b) => b.addEventListener('click', () => uploadInto(form.querySelector(`input[data-k="${b.dataset.up}"]`))));
+    let publish = true;
+    $$('[data-publish]', form).forEach((b) => b.addEventListener('click', () => { publish = b.dataset.publish === '1'; }));
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.submitter || form.querySelector('[type=submit]');
+      const body = { name: name || d.title, channelId: $('#emb-ch').value || null, data: d, publish };
+      if (publish && !body.channelId) { toast(t('ch.choose'), 'err'); $('#emb-ch').focus(); return; }
+      btn.disabled = true; btn.classList.add('busy');
+      try {
+        const r = await api(rec ? `embeds/${rec.id}` : 'embeds', { method: rec ? 'PUT' : 'POST', body });
+        toast(r.message);
+        if (!rec) { location.hash = `#/embeds?id=${r.embed.id}`; return; }
+        embedBuilder(r.embed.id);
+      } catch (err) { toast(err.message, 'err'); btn.disabled = false; btn.classList.remove('busy'); }
+    });
+    $('#emb-del')?.addEventListener('click', async () => {
+      if (!await ask({ title: t('emb.delete.q'), body: t('emb.delete.body'), confirm: t('emb.delete'), danger: true })) return;
+      try { const r = await api(`embeds/${rec.id}/delete`, { method: 'POST', body: {} }); toast(r.message); location.hash = '#/embeds'; } catch (err) { toast(err.message, 'err'); }
+    });
+  }
 
   /* ============================== Comunidade ============================== */
 
@@ -1066,6 +1484,7 @@
     { path: 'vips', key: 'nav.vips', icon: 'crown', page: pageVips },
     { path: 'tickets', key: 'nav.tickets', icon: 'ticket', page: pageTickets, badge: 'tickets' },
     { path: 'comunidade', key: 'nav.community', icon: 'trophy', page: pageCommunity },
+    { path: 'embeds', key: 'nav.embeds', icon: 'layers', page: pageEmbeds },
     { path: 'avaliacoes', key: 'nav.reviews', icon: 'star', page: pageReviews },
     { path: 'historico', key: 'nav.history', icon: 'history', page: pageAudit },
     { path: 'configuracoes', key: 'nav.settings', icon: 'settings', page: pageSettings },
@@ -1077,7 +1496,7 @@
   function renderNav() {
     const current = location.hash.replace(/^#\/?/, '').split('?')[0];
     const active = NAV.some((n) => n.path === current) ? current : '';
-    $('#nav').innerHTML = NAV.map((n, i) => `${i === 4 ? `<div class="nav-sep">${t('nav.manage')}</div>` : ''}${i === 9 ? `<div class="nav-sep">${t('nav.system')}</div>` : ''}
+    $('#nav').innerHTML = NAV.map((n, i) => `${i === 4 ? `<div class="nav-sep">${t('nav.manage')}</div>` : ''}${i === 10 ? `<div class="nav-sep">${t('nav.system')}</div>` : ''}
       <a href="#/${n.path}" class="${n.path === active ? 'active' : ''}" ${n.path === active ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${t(n.key)}</span>${badge(n.badge)}</a>`).join('');
     const tabs = NAV.filter((n) => n.tab);
     const moreActive = !tabs.some((n) => n.path === active);

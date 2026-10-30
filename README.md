@@ -19,6 +19,9 @@ Bot de Discord que vende VIPs, CCs, presets e cursos da **Cutify** com Pix, entr
 - **Torneios**: inscrição por botão, chave eliminatória sorteada (quem sobra passa direto), resultados reportados pela equipe e anúncio do campeão.
 - **Votações**: até 10 opções com botões, barras de resultado ao vivo, prazo automático, voto restrito a um cargo e opção de esconder o resultado até o fim.
 - **Vídeos e músicas livres**: `/video` busca vídeos gratuitos (Pexels/Pixabay) e `/musica` busca músicas Creative Commons (Jamendo), com crédito e licença de cada item.
+- **Tickets personalizáveis**: título, descrição, banner, cor, texto do menu, opções com emoji e mensagem de boas-vindas, editados pelo Discord ou pelo painel web (com prévia ao vivo).
+- **Avaliação do atendimento**: quando o ticket fecha, quem abriu recebe na DM botões de 1 a 5 estrelas e pode comentar. A nota vai para o canal escolhido pelo admin, e o painel mostra a média e o ranking da equipe.
+- **Embeds com botões**: crie mensagens bonitas com até 10 botões (link, abrir loja, abrir suporte ou dar/tirar cargo) pelo `/embed` ou pelo editor visual do painel.
 - **Proteções**: pedidos duplicados reaproveitados, eventos de pagamento processados uma vez só, entrega com trava contra duplicidade, limite de pedidos abertos, anti-spam, permissões checadas pelo ID do admin no servidor, clientes só veem os próprios pedidos.
 
 ---
@@ -139,7 +142,9 @@ Extras:
   <img src="docs/painel-escuro.png" alt="Painel no tema escuro" width="720"><br>
   <img src="docs/celular-inicio.png" alt="Painel no celular" width="240">
   <img src="docs/celular-pedido.png" alt="Pedido no celular" width="240"><br>
-  <img src="docs/comunidade.png" alt="Tela Comunidade: torneios e votações" width="720">
+  <img src="docs/comunidade.png" alt="Tela Comunidade: torneios e votações" width="720"><br>
+  <img src="docs/tickets-personalizar.png" alt="Personalizar o painel de tickets" width="720"><br>
+  <img src="docs/editor-embeds.png" alt="Editor de embeds com botões" width="720">
 </p>
 
 **Segurança do painel**
@@ -214,6 +219,44 @@ Também tem `/torneio chave` (qualquer um vê a chave) e `/torneio cancelar`. O 
 
 No painel web, a tela **Comunidade** mostra os torneios (progresso e campeão), as votações (resultado parcial) e se a busca de mídia está ligada, com botões para cancelar um torneio ou encerrar uma votação.
 
+## 8. Tickets personalizados, avaliação e embeds
+
+**Personalizar o painel de tickets**
+
+- **Pelo painel web**: Tickets → **Personalizar**. Edite título, descrição, banner (com upload), cor, texto do menu, rodapé e as opções do menu (nome, descrição, emoji, ordem, mostrar/ocultar). A prévia ao lado mostra como fica no Discord: o painel, a mensagem ao abrir o ticket e a avaliação na DM.
+- **Pelo Discord**:
+  - `/ticket personalizar`: título, descrição, banner, cor e texto do menu.
+  - `/ticket opcao`: cria uma opção nova (deixe "opcao" vazio) ou edita/oculta/remove uma existente. Aceita emoji comum (🤝) ou do servidor (`<:nome:id>`).
+  - `/ticket boas-vindas`: mensagem que aparece quando o ticket abre. Use `{usuario}`, `{motivo}` e `{servidor}`.
+  - `/ticket publicar canal:#suporte`: publica o painel. Depois disso, **toda mudança atualiza a mensagem sozinha**.
+  - `/ticket restaurar`: volta tudo ao padrão.
+
+**Avaliação do atendimento**
+
+1. Escolha o canal das notas: `/ticket avaliacao ativa:true canal:#avaliacoes-suporte` (ou `/configurar canais avaliacoes_atendimento:`, ou pelo painel).
+2. Quando alguém da equipe clica em **Assumir**, o bot registra quem está atendendo.
+3. Ao **Fechar ticket**, quem abriu recebe na DM o pedido de avaliação com botões de 1 a 5 ★. Depois de escolher, pode deixar um comentário.
+4. A avaliação é publicada no canal escolhido (cliente, atendente, assunto, nota e comentário). Cada atendimento só pode ser avaliado uma vez, e só por quem abriu.
+5. `/ticket notas` e a aba **Avaliações** do painel mostram a média e o ranking da equipe.
+
+Se a DM do cliente estiver fechada, o bot avisa a equipe na mensagem de fechamento.
+
+**Embeds com botões**
+
+- **Pelo painel web** (recomendado): menu **Embeds**. Comece de um modelo (Regras, Boas-vindas, Anúncio, Cargos por botão) ou do zero, edite com prévia ao vivo e clique em **Publicar no Discord**. Editar depois atualiza a mesma mensagem.
+- **Pelo Discord**: `/embed criar canal:#regras` abre um formulário. No campo de botões, escreva um por linha:
+
+  ```
+  🌐 Site | https://cutify.com
+  Comprar | loja
+  Suporte | ticket
+  Avisos | cargo Notificações
+  ```
+
+  `/embed editar` reabre o formulário preenchido, `/embed reenviar` publica de novo (em outro canal ou se a mensagem foi apagada) e `/embed apagar` remove.
+- **O que cada botão faz**: *link* abre o site; *loja* abre a vitrine só para quem clicou; *ticket* abre o menu de suporte; *cargo* dá o cargo (ou tira, se a pessoa já tiver).
+- Por segurança, **cargos com permissões de moderação** (administrador, banir, gerenciar canais etc.) não podem ser dados por botão, e o cargo do bot precisa estar acima do cargo distribuído.
+
 ## Comandos
 
 | Clientes | |
@@ -237,6 +280,8 @@ No painel web, a tela **Comunidade** mostra os torneios (progresso e campeão), 
 | `/vip listar` • `dar` • `remover` | VIPs |
 | `/torneio criar` • `iniciar` • `cancelar` | Torneios (equipe: admins ou cargo de staff) |
 | `/votacao criar` • `encerrar` | Votações (equipe) |
+| `/ticket personalizar` • `boas-vindas` • `opcao` • `avaliacao` • `publicar` • `notas` • `restaurar` | Painel de tickets e avaliação do atendimento |
+| `/embed criar` • `editar` • `reenviar` • `apagar` • `listar` | Embeds com botões |
 | `/configurar canais` • `painel-loja` • `painel-suporte` • `termos` • `ver` | Configuração (inclui o canal de avaliações) |
 
 **Reembolso**: no Pix automático o estorno é feito pelo Mercado Pago na hora. No Pix manual o bot marca como reembolsado e você devolve pelo app do banco. Por padrão o cargo VIP é retirado.
@@ -263,6 +308,9 @@ Outras: Cancelado, Expirado, Falha na entrega (equipe avisada, reenvio sem nova 
 - [ ] Torneio com 3 contas: inscrever, iniciar, reportar e ver o campeão
 - [ ] Votação com prazo de 1 minuto: votar, trocar o voto e ver o encerramento automático
 - [ ] `/video` e `/musica` com as chaves configuradas
+- [ ] Personalizar o painel de tickets e ver a mensagem publicada se atualizar
+- [ ] Assumir e fechar um ticket com outra conta: chega a DM, a nota vai para o canal
+- [ ] Embed com botão de cargo: clicar dá o cargo, clicar de novo tira
 
 ## Segurança
 
@@ -280,15 +328,15 @@ src/
   config.js  db.js  theme.js  util.js
   commands/definitions.js
   handlers/  router.js (distribui)  client.js (clientes)  admin.js (administração)
-             community.js (torneios, votações, mídia)
+             community.js (torneios, votações, mídia)  customize.js (/ticket, /embed)
   services/  orders.js (regras)  payments.js  mercadopago.js  pix.js
              delivery.js  vip.js  tickets.js  reviews.js  actions.js
-             tournaments.js  polls.js  media.js
+             tournaments.js  polls.js  media.js  ticketConfig.js  embeds.js
              webhook.js  backup.js  logger.js
-  ui/store.js           telas da loja
+  ui/store.js  support.js   telas da loja e painel de suporte
   web/       server.js (HTTP)  auth.js (login Discord)  api.js  i18n.js (mensagens)
              public/ index.html  app.js  app.css  i18n.js (textos PT/EN/ES)
 assets/  logo.png  banner.png
 docs/    capturas de tela
-tests/   core.test.js  web.test.js  community.test.js
+tests/   core.test.js  web.test.js  community.test.js  customize.test.js
 ```

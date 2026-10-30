@@ -150,6 +150,34 @@ commands.push(
       .addUserOption((o) => o.setName('usuario').setDescription('Membro').setRequired(true))
       .addRoleOption((o) => o.setName('cargo').setDescription('Cargo VIP').setRequired(true))),
 
+  new SlashCommandBuilder().setName('ticket').setDescription('Personalizar o sistema de tickets').setDefaultMemberPermissions(ADMIN)
+    .addSubcommand((s) => s.setName('personalizar').setDescription('Título, descrição, banner, cor e texto do menu do painel'))
+    .addSubcommand((s) => s.setName('boas-vindas').setDescription('Mensagem que aparece quando o ticket abre'))
+    .addSubcommand((s) => s.setName('opcao').setDescription('Criar, editar ou remover uma opção do menu')
+      .addStringOption((o) => o.setName('opcao').setDescription('Opção existente (vazio = criar nova)').setAutocomplete(true))
+      .addBooleanOption((o) => o.setName('ativa').setDescription('Mostrar no menu?'))
+      .addBooleanOption((o) => o.setName('remover').setDescription('Apagar esta opção')))
+    .addSubcommand((s) => s.setName('avaliacao').setDescription('Pedido de avaliação enviado na DM ao fechar')
+      .addBooleanOption((o) => o.setName('ativa').setDescription('Enviar o pedido de avaliação?').setRequired(true))
+      .addStringOption((o) => o.setName('mensagem').setDescription('Texto do pedido').setMaxLength(1000))
+      .addChannelOption((o) => o.setName('canal').setDescription('Onde as notas são publicadas').addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand((s) => s.setName('publicar').setDescription('Publicar o painel de tickets')
+      .addChannelOption((o) => o.setName('canal').setDescription('Canal (vazio = este)').addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand((s) => s.setName('notas').setDescription('Média das avaliações e ranking da equipe'))
+    .addSubcommand((s) => s.setName('restaurar').setDescription('Voltar o painel de tickets ao padrão')),
+
+  new SlashCommandBuilder().setName('embed').setDescription('Criar mensagens embed com botões').setDefaultMemberPermissions(ADMIN)
+    .addSubcommand((s) => s.setName('criar').setDescription('Criar embed (abre um formulário)')
+      .addChannelOption((o) => o.setName('canal').setDescription('Onde publicar (vazio = este)').addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand((s) => s.setName('editar').setDescription('Editar um embed já publicado')
+      .addStringOption((o) => o.setName('embed').setDescription('Embed').setRequired(true).setAutocomplete(true)))
+    .addSubcommand((s) => s.setName('reenviar').setDescription('Publicar de novo (em outro canal ou se a mensagem sumiu)')
+      .addStringOption((o) => o.setName('embed').setDescription('Embed').setRequired(true).setAutocomplete(true))
+      .addChannelOption((o) => o.setName('canal').setDescription('Canal').addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand((s) => s.setName('apagar').setDescription('Apagar o embed e a mensagem')
+      .addStringOption((o) => o.setName('embed').setDescription('Embed').setRequired(true).setAutocomplete(true)))
+    .addSubcommand((s) => s.setName('listar').setDescription('Ver os embeds salvos')),
+
   new SlashCommandBuilder().setName('configurar').setDescription('Configurar a Paany').setDefaultMemberPermissions(ADMIN)
     .addSubcommand((s) => s.setName('canais').setDescription('Canais de log, aprovação e tickets')
       .addChannelOption((o) => o.setName('vendas').setDescription('Log de vendas').addChannelTypes(ChannelType.GuildText))
@@ -157,6 +185,7 @@ commands.push(
       .addChannelOption((o) => o.setName('erros').setDescription('Log de erros').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('aprovacoes').setDescription('Onde chegam os Pix manuais para aprovar').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('avaliacoes').setDescription('Onde as avaliações dos clientes são publicadas').addChannelTypes(ChannelType.GuildText))
+      .addChannelOption((o) => o.setName('avaliacoes_atendimento').setDescription('Onde chegam as notas dos atendimentos (tickets)').addChannelTypes(ChannelType.GuildText))
       .addChannelOption((o) => o.setName('categoria_tickets').setDescription('Categoria dos tickets').addChannelTypes(ChannelType.GuildCategory)))
     .addSubcommand((s) => s.setName('painel-loja').setDescription('Publicar a vitrine da loja neste canal'))
     .addSubcommand((s) => s.setName('painel-suporte').setDescription('Publicar o painel de tickets neste canal'))
