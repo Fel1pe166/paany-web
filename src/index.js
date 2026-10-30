@@ -51,7 +51,8 @@ client.on(Events.Error, (e) => logError('cliente Discord', e));
 process.on('unhandledRejection', (e) => logError('promessa não tratada', e));
 process.on('uncaughtException', (e) => { console.error(e); logError('exceção não tratada', e); });
 
-startWebServer();
+// Servidor web só quando há endereço público (painel/webhook). No plano grátis economiza memória.
+if (config.publicUrl) startWebServer();
 client.login(config.token).catch((e) => {
   console.error('[bot] Falha no login:', e.message);
   if (/disallowed intents/i.test(e.message)) {

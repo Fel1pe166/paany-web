@@ -99,7 +99,7 @@ O plano grátis da Discloud dá 100 MB de RAM para 1 bot, sem site público — 
 
 Se o bot crescer, qualquer hospedagem paga com Node 22 funciona igual (Square Cloud, VPS etc.). Nela você liga o **painel web** e o **webhook** (seção 6). Para deixar o painel na Vercel e o bot na Discloud, veja a seção 9.
 
-> O `discloud.config` do projeto vem no modo **site** (`TYPE=site`, `RAM=512`), que exige o plano Platinum. No plano grátis, troque por `TYPE=bot`, `RAM=100` e apague a linha `ID=`.
+> O `discloud.config` do projeto vem pronto para o **plano grátis** (`TYPE=bot`, `RAM=100`). Para o painel na Vercel (seção 9), troque para `TYPE=site`, `RAM=512` e adicione `ID=seu-subdominio` (exige o plano Platinum).
 
 ## 5. Primeiros passos no Discord
 
@@ -274,7 +274,7 @@ Uma senha compartilhada (`BRIDGE_SECRET`) faz o bot recusar qualquer acesso ao p
 
 **1. Discloud (bot)**
 
-1. Escolha um subdomínio livre e coloque em `ID=` no `discloud.config` (já vem `ID=paany`, `TYPE=site` e `RAM=512`).
+1. No `discloud.config`, troque para `TYPE=site`, `RAM=512` e adicione `ID=seu-subdominio` (um nome livre).
 2. No `.env` do bot:
    ```
    PUBLIC_URL=https://SEU-PAINEL.vercel.app
