@@ -7,6 +7,7 @@ import { logError, sendLog, setClient } from './services/logger.js';
 import { startPaymentLoop } from './services/payments.js';
 import { startVipLoop } from './services/vip.js';
 import { startWebServer } from './web/server.js';
+import { startCommunityLoop } from './handlers/community.js';
 
 validateConfig();
 openDb();
@@ -40,6 +41,7 @@ client.once(Events.ClientReady, async (c) => {
   startPaymentLoop();
   startVipLoop();
   startBackupLoop();
+  startCommunityLoop();
   await sendLog('admin', { title: `${config.botName} iniciou`, description: 'Bot online e verificando pagamentos.' });
 });
 

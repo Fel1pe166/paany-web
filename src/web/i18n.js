@@ -59,6 +59,11 @@ const EXACT = {
   'Sessão de login inválida. Tente de novo.': ['Invalid login session. Try again.', 'Sesión de inicio inválida. Inténtalo de nuevo.'],
   'O Discord recusou o login. Confira o Client Secret e o Redirect.': ['Discord rejected the login. Check the Client Secret and Redirect.', 'Discord rechazó el inicio. Revisa el Client Secret y el Redirect.'],
   'Não consegui ler sua conta do Discord.': ['Could not read your Discord account.', 'No pude leer tu cuenta de Discord.'],
+  'Torneio cancelado.': ['Tournament cancelled.', 'Torneo cancelado.'],
+  'Esse torneio não pode ser cancelado.': ['This tournament can\'t be cancelled.', 'Este torneo no se puede cancelar.'],
+  'Votação encerrada.': ['Poll closed.', 'Votación cerrada.'],
+  'Votação não encontrada.': ['Poll not found.', 'Votación no encontrada.'],
+  'Essa votação já foi encerrada.': ['This poll is already closed.', 'Esta votación ya está cerrada.'],
   // Páginas HTML
   'Acesso negado': ['Access denied', 'Acceso denegado'],
   'Sua conta do Discord não está na lista de administradores da loja.': ['Your Discord account is not on the store\'s admin list.', 'Tu cuenta de Discord no está en la lista de administradores.'],

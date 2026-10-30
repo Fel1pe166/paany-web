@@ -16,6 +16,9 @@ Bot de Discord que vende VIPs, CCs, presets e cursos da **Cutify** com Pix, entr
 - **Renovação com 1 clique**: o aviso de VIP vencendo chega na DM com o botão **Renovar agora**, que já abre a compra do mesmo plano.
 - **Painel web** (hospedagem paga): login com Discord, em português, inglês ou espanhol, tema escuro e claro, funciona no celular. Vendas, pedidos, clientes, produtos, cupons, VIPs, tickets, avaliações, configurações e busca rápida. Veja a seção 6.
 - **Pausar a loja**: modo manutenção ligado pelo painel, que bloqueia novas compras no Discord.
+- **Torneios**: inscrição por botão, chave eliminatória sorteada (quem sobra passa direto), resultados reportados pela equipe e anúncio do campeão.
+- **Votações**: até 10 opções com botões, barras de resultado ao vivo, prazo automático, voto restrito a um cargo e opção de esconder o resultado até o fim.
+- **Vídeos e músicas livres**: `/video` busca vídeos gratuitos (Pexels/Pixabay) e `/musica` busca músicas Creative Commons (Jamendo), com crédito e licença de cada item.
 - **Proteções**: pedidos duplicados reaproveitados, eventos de pagamento processados uma vez só, entrega com trava contra duplicidade, limite de pedidos abertos, anti-spam, permissões checadas pelo ID do admin no servidor, clientes só veem os próprios pedidos.
 
 ---
@@ -135,7 +138,8 @@ Extras:
 <p align="center">
   <img src="docs/painel-escuro.png" alt="Painel no tema escuro" width="720"><br>
   <img src="docs/celular-inicio.png" alt="Painel no celular" width="240">
-  <img src="docs/celular-pedido.png" alt="Pedido no celular" width="240">
+  <img src="docs/celular-pedido.png" alt="Pedido no celular" width="240"><br>
+  <img src="docs/comunidade.png" alt="Tela Comunidade: torneios e votações" width="720">
 </p>
 
 **Segurança do painel**
@@ -176,6 +180,40 @@ Com endereço público, o Pix passa a ser confirmado na hora:
 
 A verificação a cada 20 segundos continua ligada como reserva.
 
+## 7. Comunidade: torneios, votações, vídeos e músicas
+
+**Torneios** (a equipe cria; todos participam)
+
+1. No canal do evento: `/torneio criar nome:Copa Cutify vagas:16 premio:VIP 30 dias`.
+2. A mensagem do torneio aparece com os botões **Inscrever-se** e **Sair**, e a lista de inscritos se atualiza sozinha.
+3. A equipe clica em **Iniciar** (ou usa `/torneio iniciar`). O bot sorteia a chave. Se o número de jogadores não fechar (ex.: 6), alguns passam direto para a rodada seguinte.
+4. Quando uma partida termina, a equipe clica em **Reportar resultado**, escolhe a partida e o vencedor. A chave avança sozinha.
+5. Na final, o bot anuncia o campeão e o prêmio no canal.
+
+Também tem `/torneio chave` (qualquer um vê a chave) e `/torneio cancelar`. O torneio funciona de 2 a 64 jogadores.
+
+**Votações** (a equipe cria)
+
+```
+/votacao criar pergunta:Qual o próximo pack? opcoes:Phonk | Lofi | Glitch duracao_min:1440
+```
+
+- Cada membro vota clicando no botão da opção. Clicar em outra opção troca o voto, e clicar na mesma retira.
+- **Meu voto** mostra em qual opção a pessoa votou, sem expor o voto dos outros.
+- `cargo:` limita quem vota (ex.: só VIPs). `ocultar_resultado:true` mostra o resultado só no fim.
+- Com `duracao_min`, a votação encerra sozinha e o bot anuncia a opção vencedora. Também dá para encerrar pelo botão, por `/votacao encerrar` ou pelo painel.
+
+**Vídeos e músicas livres** (todos usam)
+
+- `/video busca:smoke formato:Vertical`: vídeos gratuitos do Pexels ou Pixabay, liberados até para uso comercial. Mostra a prévia, a resolução e o botão **Baixar vídeo**.
+- `/musica busca:lofi`: músicas Creative Commons do Jamendo. Mostra a licença, o botão **Ouvir** e, quando o artista permite, **Baixar MP3**. Avisa quando a licença é **não comercial** (não pode ir para vídeo monetizado).
+- As respostas aparecem só para quem pediu. Com `publico:true`, aparecem para o canal todo. Use ◀ ▶ para ver mais resultados.
+- Para ligar, crie as chaves gratuitas e coloque `PEXELS_API_KEY` ou `PIXABAY_API_KEY`, além de `JAMENDO_CLIENT_ID`, no `.env` (veja o `.env.example`).
+
+> O bot **não** baixa vídeos ou músicas do YouTube, TikTok, Spotify e afins: isso viola os termos dessas plataformas e direitos autorais, e pode fazer o Discord banir o bot ou o servidor.
+
+No painel web, a tela **Comunidade** mostra os torneios (progresso e campeão), as votações (resultado parcial) e se a busca de mídia está ligada, com botões para cancelar um torneio ou encerrar uma votação.
+
 ## Comandos
 
 | Clientes | |
@@ -186,6 +224,8 @@ A verificação a cada 20 segundos continua ligada como reserva.
 | `/pedido` | Consulta um pedido próprio pelo ID |
 | `/suporte` | Abre um ticket |
 | `/ajuda` • `/termos` | Comandos e termos |
+| `/video` • `/musica` | Vídeos e músicas livres para edição |
+| `/torneio chave` | Ver a chave de um torneio |
 
 | Administradores (só IDs em `ADMIN_IDS`) | |
 |---|---|
@@ -195,6 +235,8 @@ A verificação a cada 20 segundos continua ligada como reserva.
 | `/cupom criar` • `listar` • `desativar` | Cupons e promoções |
 | `/vendas` | Relatório por período |
 | `/vip listar` • `dar` • `remover` | VIPs |
+| `/torneio criar` • `iniciar` • `cancelar` | Torneios (equipe: admins ou cargo de staff) |
+| `/votacao criar` • `encerrar` | Votações (equipe) |
 | `/configurar canais` • `painel-loja` • `painel-suporte` • `termos` • `ver` | Configuração (inclui o canal de avaliações) |
 
 **Reembolso**: no Pix automático o estorno é feito pelo Mercado Pago na hora. No Pix manual o bot marca como reembolsado e você devolve pelo app do banco. Por padrão o cargo VIP é retirado.
@@ -218,6 +260,9 @@ Outras: Cancelado, Expirado, Falha na entrega (equipe avisada, reenvio sem nova 
 - [ ] Avaliar uma compra entregue → aparece no canal de avaliações e na loja
 - [ ] Painel: entrar com uma conta de admin e com uma conta comum (deve ser negada)
 - [ ] Painel: aprovar um Pix manual e conferir a entrega no Discord
+- [ ] Torneio com 3 contas: inscrever, iniciar, reportar e ver o campeão
+- [ ] Votação com prazo de 1 minuto: votar, trocar o voto e ver o encerramento automático
+- [ ] `/video` e `/musica` com as chaves configuradas
 
 ## Segurança
 
@@ -235,13 +280,15 @@ src/
   config.js  db.js  theme.js  util.js
   commands/definitions.js
   handlers/  router.js (distribui)  client.js (clientes)  admin.js (administração)
+             community.js (torneios, votações, mídia)
   services/  orders.js (regras)  payments.js  mercadopago.js  pix.js
              delivery.js  vip.js  tickets.js  reviews.js  actions.js
+             tournaments.js  polls.js  media.js
              webhook.js  backup.js  logger.js
   ui/store.js           telas da loja
   web/       server.js (HTTP)  auth.js (login Discord)  api.js  i18n.js (mensagens)
              public/ index.html  app.js  app.css  i18n.js (textos PT/EN/ES)
 assets/  logo.png  banner.png
 docs/    capturas de tela
-tests/   core.test.js  web.test.js
+tests/   core.test.js  web.test.js  community.test.js
 ```

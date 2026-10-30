@@ -236,6 +236,13 @@ export function helpView(admin = false) {
         '`/suporte` — abrir um ticket',
         '`/termos` — termos, reembolso e privacidade',
       ].join('\n'),
+    }, {
+      name: 'Comunidade',
+      value: [
+        '`/video` — vídeos gratuitos para edição (Pexels/Pixabay)',
+        '`/musica` — músicas livres Creative Commons (Jamendo)',
+        '`/torneio chave` — ver a chave de um torneio',
+      ].join('\n'),
     });
   if (admin) {
     e.addFields({
@@ -247,6 +254,7 @@ export function helpView(admin = false) {
         '`/cupom criar|listar|desativar`',
         '`/vendas` • `/vip listar|dar|remover`',
         '`/configurar canais|painel-loja|painel-suporte|termos`',
+        '`/torneio criar|iniciar|cancelar` • `/votacao criar|encerrar`',
       ].join('\n'),
     });
   }

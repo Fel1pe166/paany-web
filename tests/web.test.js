@@ -256,3 +256,22 @@ test('backup baixa um banco SQLite válido', async () => {
   const buf = Buffer.from(await r.arrayBuffer());
   assert.equal(buf.subarray(0, 15).toString(), 'SQLite format 3');
 });
+
+test('comunidade: lista torneios e votações e encerra pelo painel', async () => {
+  const T = await import('../src/services/tournaments.js');
+  const P = await import('../src/services/polls.js');
+  const t = T.createTournament({ name: 'Copa Painel', createdBy: '111' });
+  T.join(t.id, 'a'); T.join(t.id, 'b');
+  const { poll } = P.createPoll({ question: 'Pack?', options: ['A', 'B'], createdBy: '111' });
+  P.vote(poll.id, 'a', 1);
+  const d = await (await call('/api/community')).json();
+  assert.ok(d.tournaments.some((x) => x.name === 'Copa Painel' && x.players === 2));
+  assert.ok(d.polls.some((x) => x.question === 'Pack?' && x.counts[1] === 1));
+  assert.equal(typeof d.media.video, 'boolean');
+  const c = await (await call(`/api/community/polls/${poll.id}/close`, { method: 'POST', body: {} })).json();
+  assert.equal(c.ok, true);
+  assert.equal((await call(`/api/community/polls/${poll.id}/close`, { method: 'POST', body: {} })).status, 400);
+  const x = await (await call(`/api/community/tournaments/${t.id}/cancel`, { method: 'POST', body: {} })).json();
+  assert.equal(x.ok, true);
+  assert.equal(T.getTournament(t.id).status, 'cancelado');
+});

@@ -29,6 +29,40 @@ export const commands = [
   new SlashCommandBuilder().setName('ajuda').setDescription('Ver os comandos'),
   new SlashCommandBuilder().setName('termos').setDescription('Termos, reembolso e privacidade'),
 
+  /* ------------------------------ Comunidade ------------------------------ */
+  new SlashCommandBuilder().setName('torneio').setDescription('Torneios do servidor')
+    .addSubcommand((s) => s.setName('criar').setDescription('Criar torneio neste canal (equipe)')
+      .addStringOption((o) => o.setName('nome').setDescription('Nome do torneio').setRequired(true).setMaxLength(80))
+      .addIntegerOption((o) => o.setName('vagas').setDescription('Máximo de jogadores (2 a 64, padrão 16)').setMinValue(2).setMaxValue(64))
+      .addStringOption((o) => o.setName('premio').setDescription('Prêmio, ex.: VIP KingX 30 dias').setMaxLength(200))
+      .addStringOption((o) => o.setName('descricao').setDescription('Regras e informações').setMaxLength(1000)))
+    .addSubcommand((s) => s.setName('iniciar').setDescription('Fechar inscrições e sortear a chave (equipe)')
+      .addStringOption((o) => o.setName('torneio').setDescription('Torneio').setRequired(true).setAutocomplete(true)))
+    .addSubcommand((s) => s.setName('chave').setDescription('Ver a chave de um torneio')
+      .addStringOption((o) => o.setName('torneio').setDescription('Torneio').setRequired(true).setAutocomplete(true)))
+    .addSubcommand((s) => s.setName('cancelar').setDescription('Cancelar torneio (equipe)')
+      .addStringOption((o) => o.setName('torneio').setDescription('Torneio').setRequired(true).setAutocomplete(true))),
+
+  new SlashCommandBuilder().setName('votacao').setDescription('Votações do servidor (equipe)')
+    .addSubcommand((s) => s.setName('criar').setDescription('Criar votação neste canal')
+      .addStringOption((o) => o.setName('pergunta').setDescription('Pergunta').setRequired(true).setMaxLength(200))
+      .addStringOption((o) => o.setName('opcoes').setDescription('Opções separadas por | (ex.: Sim | Não | Talvez), até 10').setRequired(true).setMaxLength(900))
+      .addIntegerOption((o) => o.setName('duracao_min').setDescription('Encerra sozinha após X minutos (vazio = só manual)').setMinValue(1).setMaxValue(43200))
+      .addRoleOption((o) => o.setName('cargo').setDescription('Só quem tem este cargo pode votar'))
+      .addBooleanOption((o) => o.setName('ocultar_resultado').setDescription('Mostrar o resultado só no fim')))
+    .addSubcommand((s) => s.setName('encerrar').setDescription('Encerrar votação agora')
+      .addStringOption((o) => o.setName('votacao').setDescription('Votação').setRequired(true).setAutocomplete(true))),
+
+  new SlashCommandBuilder().setName('video').setDescription('Buscar vídeos gratuitos para edição (Pexels/Pixabay)')
+    .addStringOption((o) => o.setName('busca').setDescription('O que procurar, ex.: city night, ocean, smoke').setRequired(true).setMaxLength(100))
+    .addStringOption((o) => o.setName('formato').setDescription('Orientação')
+      .addChoices({ name: 'Horizontal', value: 'horizontal' }, { name: 'Vertical (TikTok/Reels)', value: 'vertical' }, { name: 'Quadrado', value: 'quadrado' }))
+    .addBooleanOption((o) => o.setName('publico').setDescription('Mostrar para todos no canal')),
+
+  new SlashCommandBuilder().setName('musica').setDescription('Buscar músicas livres (Creative Commons, Jamendo)')
+    .addStringOption((o) => o.setName('busca').setDescription('Gênero, clima ou nome, ex.: lofi, phonk, epic').setRequired(true).setMaxLength(100))
+    .addBooleanOption((o) => o.setName('publico').setDescription('Mostrar para todos no canal')),
+
   /* ---------------------------- Administração ---------------------------- */
   new SlashCommandBuilder().setName('admin').setDescription('Painel administrativo').setDefaultMemberPermissions(ADMIN)
     .addSubcommand((s) => s.setName('painel').setDescription('Resumo de vendas, pendências e falhas'))

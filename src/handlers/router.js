@@ -8,6 +8,7 @@ import { logError } from '../services/logger.js';
 import { storePanel } from '../ui/store.js';
 import * as C from './client.js';
 import * as A from './admin.js';
+import * as K from './community.js';
 
 const ADMIN_COMMANDS = new Set(['admin', 'produto', 'gpedido', 'cupom', 'vendas', 'vip', 'configurar']);
 
@@ -38,11 +39,16 @@ async function onCommand(i) {
     case 'vendas': return A.salesCommand(i);
     case 'vip': return A.vipCommand(i);
     case 'configurar': return A.configCommand(i);
+    case 'torneio': return K.tournamentCommand(i);
+    case 'votacao': return K.pollCommand(i);
+    case 'video':
+    case 'musica': return K.mediaCommand(i);
     default: return null;
   }
 }
 
 async function onAutocomplete(i) {
+  if (i.commandName === 'torneio' || i.commandName === 'votacao') return i.respond(K.communityAutocomplete(i));
   const focused = String(i.options.getFocused() || '').toLowerCase();
   const admin = ADMIN_COMMANDS.has(i.commandName) && isAdmin(i.user.id);
   let items = listProducts({ includeInactive: admin });
@@ -60,6 +66,10 @@ async function onComponent(i) {
   // Anti-spam geral para cliques
   const wait = cooldown(i.user.id, 'click', 800);
   if (wait && scope !== 'adm') return i.reply({ embeds: [notice('Devagar!', 'error')], flags: MessageFlags.Ephemeral });
+
+  if (scope === 'trn') return K.tournamentButton(i, action, args);
+  if (scope === 'poll') return K.pollButton(i, action, args);
+  if (scope === 'med') return K.mediaButton(i, action, args);
 
   if (scope === 'store') {
     if (action === 'cat') return C.showList(i, { category: i.values[0] });

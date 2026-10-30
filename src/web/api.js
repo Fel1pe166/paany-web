@@ -16,6 +16,10 @@ import {
 import { latestReviews } from '../services/reviews.js';
 import { TICKET_REASONS } from '../services/tickets.js';
 import { DEFAULT_TERMS } from '../ui/store.js';
+import * as TRN from '../services/tournaments.js';
+import * as POLL from '../services/polls.js';
+import { mediaFeatures } from '../services/media.js';
+import { finishPoll, refreshTournamentMessage } from '../handlers/community.js';
 
 const PAID = `('pago','processando','entregue','falha_entrega','reembolso_solicitado')`;
 const DAY = 86400000;
@@ -506,6 +510,52 @@ async function duplicateProduct(id, actor) {
   return { ok: true, message: 'Produto duplicado.', product: productOut(getProduct(copy.id), true) };
 }
 
+
+/* ------------------------------ Comunidade ------------------------------ */
+
+async function communityData() {
+  const ts = TRN.listTournaments(30);
+  const ps = POLL.listPolls(30);
+  const ids = [...ts.map((t) => t.winner_id), ...ts.map((t) => t.created_by), ...ps.map((p) => p.created_by)].filter(Boolean);
+  const nm = await userNames(ids);
+  return {
+    guildId: config.guildId,
+    media: mediaFeatures(),
+    tournaments: ts.map((t) => {
+      const ms = TRN.matches(t.id);
+      return {
+        id: t.id, name: t.name, prize: t.prize, status: t.status, maxPlayers: t.max_players, players: TRN.players(t.id).length,
+        matchesDone: ms.filter((m) => m.status === 'concluida' && m.p2).length, matchesTotal: ms.filter((m) => !(m.round === 1 && !m.p2)).length,
+        winnerId: t.winner_id, winnerName: nm[t.winner_id] ?? null, channelId: t.channel_id, messageId: t.message_id,
+        createdAt: t.created_at, finishedAt: t.finished_at,
+      };
+    }),
+    polls: ps.map((p) => {
+      const r = POLL.results(p.id);
+      return {
+        id: p.id, question: p.question, options: p.options, counts: r.counts, total: r.total, winners: r.winners, status: p.status,
+        endsAt: p.ends_at, hidden: p.hide_results, roleId: p.role_id, channelId: p.channel_id, messageId: p.message_id, createdAt: p.created_at,
+      };
+    }),
+  };
+}
+
+async function communityAction(kind, id, action, actor) {
+  if (kind === 'tournaments' && action === 'cancel') {
+    const r = TRN.cancel(id, actor);
+    if (r.error) bad(r.error);
+    await refreshTournamentMessage(TRN.getTournament(id));
+    sendLog('admin', { title: 'Torneio cancelado (painel web)', description: `#${id} por <@${actor}>` });
+    return { ok: true, message: 'Torneio cancelado.', data: await communityData() };
+  }
+  if (kind === 'polls' && action === 'close') {
+    if (!POLL.getPoll(id)) throw new HttpError(404, 'Votação não encontrada.');
+    if (!await finishPoll(Number(id), actor)) bad('Essa votação já foi encerrada.');
+    return { ok: true, message: 'Votação encerrada.', data: await communityData() };
+  }
+  throw new HttpError(404, 'Ação desconhecida.');
+}
+
 /* ------------------------------ Exportação ------------------------------ */
 
 export function exportCsv(query) {
@@ -594,6 +644,10 @@ export async function routeApi(method, path, query, body, session) {
     if (method === 'PUT') return settingsSave(body, actor);
   }
   if (method === 'GET' && a === 'search') return quickSearch(query);
+  if (a === 'community') {
+    if (method === 'GET' && !b) return communityData();
+    if (method === 'POST' && b && c && seg[3]) return communityAction(b, c, seg[3], actor);
+  }
 
   throw new HttpError(404, 'Rota não encontrada.');
 }

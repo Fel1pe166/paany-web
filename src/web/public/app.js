@@ -136,6 +136,9 @@
     globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.7 5.7 3.7 9s-1.2 6.3-3.7 9c-2.5-2.7-3.7-5.7-3.7-9S9.5 5.7 12 3z"/>',
     server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
     edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+    trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M8 20h8M10 17h4v3h-4z"/>',
+    music: '<path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+    film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
   };
   const icon = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
@@ -790,6 +793,67 @@
     $$('[data-ttab]', view).forEach((b) => b.addEventListener('click', () => { ticketTab = b.dataset.ttab; pageTickets().catch(failed); }));
   }
 
+
+  /* ============================== Comunidade ============================== */
+
+  const T_KIND = { inscricoes: 'wait', andamento: 'warn', finalizado: 'ok', cancelado: 'off' };
+  async function pageCommunity() {
+    setTitle('nav.community');
+    loading();
+    renderCommunity(await api('community'));
+  }
+  function renderCommunity(d) {
+    if (!location.hash.startsWith('#/comunidade')) return;
+    const link = (ch, msg) => (ch && msg ? `<a class="btn small" href="https://discord.com/channels/${d.guildId}/${ch}/${msg}" target="_blank" rel="noopener">${icon('external')}<span>${t('community.open.discord')}</span></a>` : '');
+    const tCards = d.tournaments.map((x) => {
+      const prog = x.matchesTotal ? x.matchesDone / x.matchesTotal : 0;
+      return `<article class="card comm">
+        <div class="comm-top"><h3>${esc(x.name)}</h3><span class="pill ${T_KIND[x.status]}"><i></i>${t(`community.t.${x.status}`)}</span></div>
+        <div class="meta">${t('community.players', { a: x.players, b: x.maxPlayers })}${x.prize ? ` · ${t('community.prize')}: ${esc(x.prize)}` : ''}</div>
+        ${x.status === 'andamento' || x.status === 'finalizado' ? `<div class="meter"><i style="width:${(prog * 100).toFixed(0)}%"></i></div>
+          <div class="meta">${t('community.matches', { a: x.matchesDone, b: x.matchesTotal })}</div>` : ''}
+        ${x.winnerId ? `<div class="champ">${icon('trophy')}<span>${t('community.champion')}: <b>${who(x.winnerId, x.winnerName)}</b></span></div>` : ''}
+        <div class="actions">${link(x.channelId, x.messageId)}${['inscricoes', 'andamento'].includes(x.status) ? `<button class="btn small danger" data-cancel-t="${x.id}">${t('community.cancel')}</button>` : ''}</div>
+      </article>`;
+    }).join('');
+    const pCards = d.polls.map((x) => {
+      const open = x.status === 'aberta';
+      return `<article class="card comm">
+        <div class="comm-top"><h3>${esc(x.question)}</h3><span class="pill ${open ? 'wait' : 'off'}"><i></i>${t(open ? 'community.poll.open' : 'community.poll.closed')}</span></div>
+        <div class="hbars">${x.options.map((o, k) => {
+          const pctv = x.total ? x.counts[k] / x.total : 0;
+          const win = !open && x.winners.includes(k);
+          return `<div class="hbar ${win ? 'win' : ''}"><div class="hbar-top"><span>${String.fromCharCode(65 + k)}. ${esc(o)}${win ? ' ✔' : ''}</span><span class="mono">${pct(pctv)} · ${x.counts[k]}</span></div>
+            <div class="hbar-track"><i style="width:${Math.max(pctv * 100, x.counts[k] ? 2 : 0).toFixed(1)}%"></i></div></div>`;
+        }).join('')}</div>
+        <div class="meta">${plural(x.total, 'community.votes1', 'community.votesN')}${open && x.endsAt ? ` · ${t('community.ends', { d: until(x.endsAt) })}` : ''}${x.hidden ? ` · ${t('community.hidden')}` : ''}</div>
+        <div class="actions">${link(x.channelId, x.messageId)}${open ? `<button class="btn small" data-close-p="${x.id}">${t('community.close')}</button>` : ''}</div>
+      </article>`;
+    }).join('');
+    const chip = (on) => `<span class="pill ${on ? 'ok' : 'off'}"><i></i>${t(on ? 'settings.on' : 'settings.off')}</span>`;
+    view.innerHTML = `
+      <section class="card">
+        <div class="card-head"><h2>${t('community.media')}</h2></div>
+        <div class="grid media-st">
+          <div class="stat row-gap between">${icon('film')}<span class="grow"><b>/video</b><br><small class="muted">${t('community.video')}</small></span>${chip(d.media.video)}</div>
+          <div class="stat row-gap between">${icon('music')}<span class="grow"><b>/musica</b><br><small class="muted">${t('community.music')}</small></span>${chip(d.media.music)}</div>
+        </div>
+        <p class="hint">${t('community.media.hint')}</p>
+      </section>
+      <h2 class="section-title">${icon('trophy')} ${t('community.tournaments')}</h2>
+      ${tCards ? `<div class="grid comm-grid">${tCards}</div>` : emptyState('trophy', t('community.none.t'), t('community.none.t.hint'))}
+      <h2 class="section-title">${icon('orders')} ${t('community.polls')}</h2>
+      ${pCards ? `<div class="grid comm-grid">${pCards}</div>` : emptyState('orders', t('community.none.p'), t('community.none.p.hint'))}`;
+    $$('[data-cancel-t]', view).forEach((b) => b.addEventListener('click', async () => {
+      if (!await ask({ title: t('community.cancel.q'), body: t('community.cancel.body'), confirm: t('community.cancel'), danger: true })) return;
+      try { const r = await api(`community/tournaments/${b.dataset.cancelT}/cancel`, { method: 'POST', body: {} }); toast(r.message); renderCommunity(r.data); } catch (e) { toast(e.message, 'err'); }
+    }));
+    $$('[data-close-p]', view).forEach((b) => b.addEventListener('click', async () => {
+      if (!await ask({ title: t('community.close.q'), confirm: t('community.close') })) return;
+      try { const r = await api(`community/polls/${b.dataset.closeP}/close`, { method: 'POST', body: {} }); toast(r.message); renderCommunity(r.data); } catch (e) { toast(e.message, 'err'); }
+    }));
+  }
+
   /* ============================== Avaliações ============================== */
 
   async function pageReviews() {
@@ -1001,6 +1065,7 @@
     { path: 'cupons', key: 'nav.coupons', icon: 'coupon', page: pageCoupons },
     { path: 'vips', key: 'nav.vips', icon: 'crown', page: pageVips },
     { path: 'tickets', key: 'nav.tickets', icon: 'ticket', page: pageTickets, badge: 'tickets' },
+    { path: 'comunidade', key: 'nav.community', icon: 'trophy', page: pageCommunity },
     { path: 'avaliacoes', key: 'nav.reviews', icon: 'star', page: pageReviews },
     { path: 'historico', key: 'nav.history', icon: 'history', page: pageAudit },
     { path: 'configuracoes', key: 'nav.settings', icon: 'settings', page: pageSettings },
@@ -1012,7 +1077,7 @@
   function renderNav() {
     const current = location.hash.replace(/^#\/?/, '').split('?')[0];
     const active = NAV.some((n) => n.path === current) ? current : '';
-    $('#nav').innerHTML = NAV.map((n, i) => `${i === 4 ? `<div class="nav-sep">${t('nav.manage')}</div>` : ''}${i === 8 ? `<div class="nav-sep">${t('nav.system')}</div>` : ''}
+    $('#nav').innerHTML = NAV.map((n, i) => `${i === 4 ? `<div class="nav-sep">${t('nav.manage')}</div>` : ''}${i === 9 ? `<div class="nav-sep">${t('nav.system')}</div>` : ''}
       <a href="#/${n.path}" class="${n.path === active ? 'active' : ''}" ${n.path === active ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${t(n.key)}</span>${badge(n.badge)}</a>`).join('');
     const tabs = NAV.filter((n) => n.tab);
     const moreActive = !tabs.some((n) => n.path === active);

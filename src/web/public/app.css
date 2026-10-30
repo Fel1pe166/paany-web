@@ -453,6 +453,21 @@ input[type=checkbox] { width: 18px; min-height: 18px; height: 18px; accent-color
 .coupon .meta { color: var(--muted); font-size: 12.5px; }
 .coupon-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
 
+/* Comunidade */
+.section-title { display: flex; align-items: center; gap: 8px; margin: 24px 0 0; font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.comm-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: start; }
+.comm { display: flex; flex-direction: column; gap: 10px; }
+.comm-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.comm h3 { margin: 0; font-size: 15px; line-height: 1.35; }
+.comm .meta { color: var(--muted); font-size: 12.5px; }
+.champ { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radius-s); background: var(--warn-bg); color: var(--warn); font-size: 13.5px; }
+.champ b { color: var(--text); }
+.hbar.win .hbar-track i { background: var(--ok); }
+.media-st { grid-template-columns: 1fr 1fr; }
+.media-st .stat { flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; }
+.media-st b { font-family: var(--mono); font-size: 14px; }
+.media-st + .hint { margin-top: 10px; }
+
 /* Avaliações */
 .rev { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); }
 .rating-card { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; position: sticky; top: 90px; }
@@ -630,7 +645,7 @@ details.box[open] summary::after { content: "−"; }
   .product .price { font-size: 15px; }
   .price-row { flex-wrap: wrap; }
   .product .tag { font-size: 9.5px; }
-  .coupons { grid-template-columns: 1fr; }
+  .coupons, .comm-grid, .media-st { grid-template-columns: 1fr; }
   .toasts { left: 12px; right: 12px; bottom: calc(var(--tab-h) + 14px + env(safe-area-inset-bottom)); }
   .toast { max-width: none; }
   .palette { margin-top: 8px; }

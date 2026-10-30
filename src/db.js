@@ -144,6 +144,74 @@ CREATE TABLE IF NOT EXISTS reviews (
   created_at INTEGER NOT NULL
 );
 
+-- Torneios (eliminatória simples)
+CREATE TABLE IF NOT EXISTS tournaments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  prize TEXT,
+  max_players INTEGER NOT NULL DEFAULT 16,
+  status TEXT NOT NULL DEFAULT 'inscricoes',  -- inscricoes | andamento | finalizado | cancelado
+  channel_id TEXT,
+  message_id TEXT,
+  winner_id TEXT,
+  created_by TEXT,
+  created_at INTEGER NOT NULL,
+  started_at INTEGER,
+  finished_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS tournament_players (
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+  user_id TEXT NOT NULL,
+  joined_at INTEGER NOT NULL,
+  PRIMARY KEY (tournament_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS tournament_matches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+  round INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  p1 TEXT,
+  p2 TEXT,
+  winner TEXT,
+  status TEXT NOT NULL DEFAULT 'pendente',    -- pendente | pronta | concluida
+  reported_by TEXT,
+  updated_at INTEGER,
+  UNIQUE (tournament_id, round, position)
+);
+
+-- Votações
+CREATE TABLE IF NOT EXISTS polls (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  question TEXT NOT NULL,
+  options TEXT NOT NULL,                      -- JSON com a lista de opções
+  channel_id TEXT,
+  message_id TEXT,
+  role_id TEXT,                               -- cargo exigido para votar (opcional)
+  hide_results INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'aberta',      -- aberta | encerrada
+  ends_at INTEGER,
+  created_by TEXT,
+  created_at INTEGER NOT NULL,
+  closed_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS poll_votes (
+  poll_id INTEGER NOT NULL REFERENCES polls(id),
+  user_id TEXT NOT NULL,
+  option_index INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (poll_id, user_id)
+);
+
+-- Cache das buscas de mídia (Pixabay exige 24h)
+CREATE TABLE IF NOT EXISTS media_cache (
+  key TEXT PRIMARY KEY,
+  query TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   actor_id TEXT,

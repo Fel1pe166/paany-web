@@ -37,6 +37,11 @@ export const config = {
   pixName: process.env.PIX_NAME || null,
   pixCity: process.env.PIX_CITY || null,
 
+  // Mídia livre (opcional): vídeos Pexels/Pixabay e músicas Jamendo
+  pexelsKey: process.env.PEXELS_API_KEY || null,
+  pixabayKey: process.env.PIXABAY_API_KEY || null,
+  jamendoClientId: process.env.JAMENDO_CLIENT_ID || null,
+
   // Banco de dados
   dbPath: process.env.DB_PATH || 'data/paany.db',
   backupKeep: int(process.env.BACKUP_KEEP, 7),
