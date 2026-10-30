@@ -1,0 +1,41 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "",
+  "buildCommand": "node scripts/build-vercel.mjs",
+  "outputDirectory": "vercel-dist",
+  "functions": {
+    "api/paany-bridge.js": { "maxDuration": 30 }
+  },
+  "redirects": [
+    { "source": "/", "destination": "/painel", "permanent": false }
+  ],
+  "rewrites": [
+    { "source": "/painel", "destination": "/painel/index.html" },
+    { "source": "/api/:bridgepath*", "destination": "/api/paany-bridge?base=api" },
+    { "source": "/img/:bridgepath", "destination": "/api/paany-bridge?base=img" },
+    { "source": "/login", "destination": "/api/paany-bridge?to=/login" },
+    { "source": "/logout", "destination": "/api/paany-bridge?to=/logout" },
+    { "source": "/auth/callback", "destination": "/api/paany-bridge?to=/auth/callback" },
+    { "source": "/webhook/mercadopago", "destination": "/api/paany-bridge?to=/webhook/mercadopago" }
+  ],
+  "headers": [
+    {
+      "source": "/painel/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "same-origin" },
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/painel",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
+}

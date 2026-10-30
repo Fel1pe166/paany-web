@@ -97,7 +97,9 @@ O plano grátis da Discloud dá 100 MB de RAM para 1 bot, sem site público — 
 
 > **Backups**: o banco fica em `data/paany.db` e o bot faz uma cópia por dia em `data/backups/`. Use `/admin backup` de vez em quando para baixar uma cópia — se a hospedagem apagar os arquivos, você restaura colocando o arquivo em `data/paany.db`.
 
-Se o bot crescer, qualquer hospedagem paga com Node 22 funciona igual (Square Cloud, VPS etc.). Nela você liga o **painel web** e o **webhook** (seção 6).
+Se o bot crescer, qualquer hospedagem paga com Node 22 funciona igual (Square Cloud, VPS etc.). Nela você liga o **painel web** e o **webhook** (seção 6). Para deixar o painel na Vercel e o bot na Discloud, veja a seção 9.
+
+> O `discloud.config` do projeto vem no modo **site** (`TYPE=site`, `RAM=512`), que exige o plano Platinum. No plano grátis, troque por `TYPE=bot`, `RAM=100` e apague a linha `ID=`.
 
 ## 5. Primeiros passos no Discord
 
@@ -257,6 +259,57 @@ Se a DM do cliente estiver fechada, o bot avisa a equipe na mensagem de fechamen
 - **O que cada botão faz**: *link* abre o site; *loja* abre a vitrine só para quem clicou; *ticket* abre o menu de suporte; *cargo* dá o cargo (ou tira, se a pessoa já tiver).
 - Por segurança, **cargos com permissões de moderação** (administrador, banir, gerenciar canais etc.) não podem ser dados por botão, e o cargo do bot precisa estar acima do cargo distribuído.
 
+## 9. Painel na Vercel + bot na Discloud
+
+Nesse formato, cada parte fica num lugar:
+
+| Onde | O que roda |
+|---|---|
+| **Discloud** (plano Platinum, modo site) | O bot do Discord, o banco de dados e a API do painel |
+| **Vercel** (grátis) | As telas do painel e uma "ponte" (`api/paany-bridge.js`) que repassa login e dados para o bot |
+
+A Discloud exige o plano Platinum para receber conexões da internet. No plano grátis o bot funciona normalmente no Discord, mas sem painel.
+
+Uma senha compartilhada (`BRIDGE_SECRET`) faz o bot recusar qualquer acesso ao painel que não venha pela Vercel.
+
+**1. Discloud (bot)**
+
+1. Escolha um subdomínio livre e coloque em `ID=` no `discloud.config` (já vem `ID=paany`, `TYPE=site` e `RAM=512`).
+2. No `.env` do bot:
+   ```
+   PUBLIC_URL=https://SEU-PAINEL.vercel.app
+   PORT=8080
+   HOST=0.0.0.0
+   BRIDGE_SECRET=senha-longa-gerada-com-o-comando-abaixo
+   DISCORD_CLIENT_SECRET=...
+   PANEL_SECRET=...
+   ```
+   Gere as senhas com `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+3. Envie o .zip (`src/`, `assets/`, `package.json`, `discloud.config`, `.env`) para a Discloud. O bot fica em `https://SEU-ID.discloud.app`.
+
+**2. Vercel (painel)**
+
+1. Em **vercel.com → Add New → Project**, importe o repositório do GitHub. O `vercel.json` já configura tudo (não precisa escolher framework).
+2. Em **Settings → Environment Variables**, adicione:
+   - `BOT_URL` = `https://SEU-ID.discloud.app`
+   - `BRIDGE_SECRET` = a mesma senha do `.env` do bot
+3. Faça o deploy (ou **Redeploy**, se o projeto já existia) e copie o endereço `https://....vercel.app`.
+
+**3. Discord Developer Portal**
+
+Em **OAuth2 → Redirects**, adicione `https://SEU-PAINEL.vercel.app/auth/callback`.
+
+**Pronto:** abra `https://SEU-PAINEL.vercel.app`. Ele vai para `/painel` e pede o login com o Discord.
+
+**Se algo der errado**
+
+- *"O bot está offline"*: o bot está desligado na Discloud ou o `BOT_URL` está errado.
+- *"Acesso negado — acesse pelo endereço da Vercel"*: você abriu o endereço da Discloud direto. Use o da Vercel.
+- *Login volta para a tela de login*: o `PUBLIC_URL` do bot precisa ser exatamente o endereço da Vercel, e o Redirect precisa estar cadastrado no Discord.
+- *"Painel sem conexão configurada"*: falta `BOT_URL` na Vercel. Depois de adicionar a variável, faça **Redeploy**.
+
+O webhook do Mercado Pago pode usar o endereço da Vercel (`/webhook/mercadopago`) ou o da Discloud. Os dois chegam no bot.
+
 ## Comandos
 
 | Clientes | |
@@ -336,7 +389,10 @@ src/
   ui/store.js  support.js   telas da loja e painel de suporte
   web/       server.js (HTTP)  auth.js (login Discord)  api.js  i18n.js (mensagens)
              public/ index.html  app.js  app.css  i18n.js (textos PT/EN/ES)
+api/     paany-bridge.js   (ponte da Vercel para o bot)
+scripts/ build-vercel.mjs  (monta o painel para a Vercel)
+vercel.json
 assets/  logo.png  banner.png
 docs/    capturas de tela
-tests/   core.test.js  web.test.js  community.test.js  customize.test.js
+tests/   core.test.js  web.test.js  community.test.js  customize.test.js  vercel.test.js
 ```

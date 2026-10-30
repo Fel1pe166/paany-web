@@ -1,6 +1,6 @@
 // Servidor HTTP da Paany: painel web, API, imagens dos produtos e webhook do Mercado Pago.
 // Sem dependências externas (node:http + node:zlib).
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { basename, join } from 'node:path';
@@ -125,12 +125,27 @@ function serveStatic(req, res, [dir, file, type]) {
   return send(req, res, 200, entry.body, { 'Content-Type': type, ETag: entry.etag, 'Cache-Control': 'no-cache' });
 }
 
+const isProtected = (p) => p === '/login' || p === '/logout' || p.startsWith('/auth/') || p.startsWith('/api/') || p === '/painel' || p.startsWith('/painel/');
+/** Confere o cabeçalho secreto que só a ponte da Vercel envia. */
+function fromBridge(req) {
+  const got = Buffer.from(String(req.headers['x-paany-bridge'] || ''));
+  const want = Buffer.from(config.bridgeSecret);
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
 async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const isGet = req.method === 'GET' || req.method === 'HEAD';
 
   if (rateLimited(req)) return json(req, res, 429, { error: 'Muitas requisições. Aguarde um minuto.' });
+
+  // Com o painel na Vercel, login/API/painel só passam se vierem pela ponte (BRIDGE_SECRET)
+  if (config.bridgeSecret && isProtected(path) && !fromBridge(req)) {
+    return path.startsWith('/api/')
+      ? json(req, res, 403, { error: 'Acesse o painel pelo endereço da Vercel.' })
+      : html(req, res, 403, page(req, 'Acesso negado', 'Acesse o painel pelo endereço da Vercel.', config.publicUrl ? { href: `${config.publicUrl}/painel`, label: 'Ir para o painel' } : null));
+  }
 
   // Saúde e webhook
   if (isGet && (path === '/' || path === '/healthz')) {
@@ -233,7 +248,7 @@ export function startWebServer() {
   });
   server.keepAliveTimeout = 65_000;
   server.requestTimeout = 30_000;
-  server.listen(config.port, () => console.log(`[web] porta ${config.port}${features.panel ? ` • painel em ${config.publicUrl}/painel` : ''}`));
+  server.listen(config.port, config.host, () => console.log(`[web] porta ${config.port}${features.panel ? ` • painel em ${config.publicUrl}/painel` : ''}`));
   server.on('error', (e) => console.warn('[web] servidor HTTP não iniciou:', e.message));
   return server;
 }

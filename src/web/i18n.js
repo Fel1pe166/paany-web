@@ -82,6 +82,7 @@ const EXACT = {
   'Todo botão precisa de texto ou emoji.': ['Every button needs text or an emoji.', 'Cada botón necesita texto o emoji.'],
   'O bot precisa estar online para validar os cargos.': ['The bot must be online to validate roles.', 'El bot debe estar en línea para validar los roles.'],
   'Cargo não encontrado no servidor.': ['Role not found in the server.', 'Rol no encontrado en el servidor.'],
+  'Acesse o painel pelo endereço da Vercel.': ['Open the panel through its Vercel address.', 'Abre el panel por su dirección de Vercel.'],
   // Páginas HTML
   'Acesso negado': ['Access denied', 'Acceso denegado'],
   'Sua conta do Discord não está na lista de administradores da loja.': ['Your Discord account is not on the store\'s admin list.', 'Tu cuenta de Discord no está en la lista de administradores.'],

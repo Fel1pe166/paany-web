@@ -31,6 +31,9 @@ export const config = {
   // Painel web (precisa de hospedagem com endereço público)
   clientSecret: process.env.DISCORD_CLIENT_SECRET || null,
   panelSecret: process.env.PANEL_SECRET || null,
+  // Painel na Vercel: senha compartilhada com a ponte (api/paany-bridge.js)
+  bridgeSecret: process.env.BRIDGE_SECRET || null,
+  host: process.env.HOST || '0.0.0.0',
 
   // Pix manual
   pixKey: process.env.PIX_KEY || null,
@@ -66,6 +69,9 @@ export function validateConfig() {
   }
   if (config.panelSecret && config.panelSecret.length < 32) {
     console.warn('[config] PANEL_SECRET precisa ter pelo menos 32 caracteres. Painel web desligado.');
+  }
+  if (config.bridgeSecret && config.bridgeSecret.length < 24) {
+    console.warn('[config] BRIDGE_SECRET muito curto: use pelo menos 24 caracteres aleatórios.');
   }
   if (config.mpAccessToken?.startsWith('TEST-')) {
     console.warn('[config] Mercado Pago em modo TESTE. Troque pelo token de produção antes de vender.');
