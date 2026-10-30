@@ -1,0 +1,19 @@
+{
+  "name": "paany-bot",
+  "version": "1.0.0",
+  "description": "Paany — bot oficial de vendas da Cutify para Discord",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning src/index.js",
+    "deploy": "node --no-warnings=ExperimentalWarning src/deploy.js",
+    "test": "node --no-warnings=ExperimentalWarning --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.19.3",
+    "qrcode": "^1.5.4"
+  }
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060607" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f6f7" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Painel • Cutify</title>
+  <link rel="icon" href="/painel/logo.png">
+  <link rel="apple-touch-icon" href="/painel/logo.png">
+  <link rel="manifest" href="/painel/manifest.webmanifest">
+  <link rel="stylesheet" href="/painel/app.css">
+  <script src="/painel/i18n.js" defer></script>
+  <script src="/painel/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#view">Pular para o conteúdo</a>
+  <div class="shell">
+    <aside class="side" id="side">
+      <a class="brand" href="#/">
+        <img src="/painel/logo.png" alt="" width="36" height="36">
+        <span><strong id="brand-name">Cutify</strong><small id="brand-sub">Paany</small></span>
+      </a>
+      <nav class="nav" id="nav" aria-label="Menu"></nav>
+      <div class="side-foot">
+        <div class="status-line" id="status-line"></div>
+        <div class="me" id="me"></div>
+      </div>
+    </aside>
+
+    <div class="main-wrap">
+      <header class="top">
+        <div class="top-left">
+          <h1 id="page-title"></h1>
+          <span class="live" id="live" hidden><i></i><span id="live-text"></span></span>
+        </div>
+        <div class="top-right">
+          <button class="search-btn" id="open-palette" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span id="search-label"></span><kbd id="search-kbd">Ctrl K</kbd>
+          </button>
+          <div class="top-tools">
+            <label class="lang"><span class="sr" id="lang-label">Idioma</span>
+              <select id="lang-select"><option value="pt">PT</option><option value="en">EN</option><option value="es">ES</option></select>
+            </label>
+            <button class="icon-btn" id="theme-btn" type="button"></button>
+          </div>
+        </div>
+      </header>
+      <div class="banner" id="paused-banner" hidden></div>
+      <div class="page-actions" id="top-actions"></div>
+      <main id="view" class="view" tabindex="-1" aria-live="polite"></main>
+    </div>
+  </div>
+
+  <nav class="tabbar" id="tabbar" aria-label="Menu"></nav>
+
+  <dialog id="drawer" class="drawer"><div class="drawer-body" id="drawer-body"></div></dialog>
+  <dialog id="sheet" class="sheet"><div class="sheet-body" id="sheet-body"></div></dialog>
+  <dialog id="modal" class="modal"><form method="dialog" class="modal-body" id="modal-body"></form></dialog>
+  <dialog id="palette" class="palette">
+    <div class="palette-box">
+      <div class="palette-input">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="palette-q" type="search" autocomplete="off" spellcheck="false">
+        <kbd>Esc</kbd>
+      </div>
+      <div class="palette-results" id="palette-results" role="listbox"></div>
+    </div>
+  </dialog>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>
