@@ -61,7 +61,8 @@ export async function handle(request) {
   if (clientIp) headers.set('x-forwarded-for', clientIp);
   headers.set('x-forwarded-host', url.host);
   headers.set('x-forwarded-proto', 'https');
-  if (process.env.BRIDGE_SECRET) headers.set('x-paany-bridge', process.env.BRIDGE_SECRET);
+  const secret = (process.env.BRIDGE_SECRET || '').trim();
+  if (secret) headers.set('x-paany-bridge', secret);
 
   const hasBody = !['GET', 'HEAD'].includes(request.method);
   let upstream;

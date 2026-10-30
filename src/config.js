@@ -32,7 +32,7 @@ export const config = {
   clientSecret: process.env.DISCORD_CLIENT_SECRET || null,
   panelSecret: process.env.PANEL_SECRET || null,
   // Painel na Vercel: senha compartilhada com a ponte (api/paany-bridge.js)
-  bridgeSecret: process.env.BRIDGE_SECRET || null,
+  bridgeSecret: (process.env.BRIDGE_SECRET || '').trim() || null,
   host: process.env.HOST || '0.0.0.0',
 
   // Pix manual
