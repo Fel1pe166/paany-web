@@ -8,6 +8,7 @@ import { startPaymentLoop } from './services/payments.js';
 import { startVipLoop } from './services/vip.js';
 import { startWebServer } from './web/server.js';
 import { startCommunityLoop } from './handlers/community.js';
+import { commandsJson } from './commands/definitions.js';
 
 validateConfig();
 openDb();
@@ -38,6 +39,17 @@ setClient(client);
 client.once(Events.ClientReady, async (c) => {
   console.log(`[bot] ${c.user.tag} online • Pix automático: ${features.mercadoPago ? 'sim' : 'não'} • Pix manual: ${features.pixManual ? 'sim' : 'não'}`);
   c.user.setPresence({ activities: [{ name: `${config.storeName} Store • /loja`, type: ActivityType.Watching }], status: 'online' });
+  // Registra os comandos sozinho ao ligar (não precisa rodar npm run deploy)
+  try {
+    const body = commandsJson();
+    const guild = await c.guilds.fetch(config.guildId);
+    await guild.commands.set(body);
+    console.log(`[bot] ${body.length} comandos registrados no servidor ${guild.name}.`);
+  } catch (e) {
+    console.error('[bot] Falha ao registrar comandos:', e.message);
+    if (e.code === 10004) console.error('→ O bot não está no servidor DISCORD_GUILD_ID. Convide o bot com o escopo applications.commands.');
+    if (e.code === 50001) console.error('→ Falta permissão: convide o bot de novo marcando "bot" e "applications.commands".');
+  }
   startPaymentLoop();
   startVipLoop();
   startBackupLoop();

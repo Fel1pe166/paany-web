@@ -79,7 +79,7 @@ Precisa do **Node.js 22.13 ou mais novo** (https://nodejs.org).
 npm install
 cp .env.example .env      # no Windows: copy .env.example .env
 # edite o .env com seus dados
-npm run deploy            # registra os comandos no servidor (repita se mudar comandos)
+npm run deploy            # opcional: o bot já registra os comandos sozinho ao ligar
 npm start
 ```
 
@@ -90,7 +90,7 @@ npm start
 O plano grátis da Discloud dá 100 MB de RAM para 1 bot, sem site público — por isso o bot usa a verificação automática a cada 20 s em vez de webhook. O projeto já vem com caches reduzidos para caber nesse limite.
 
 1. Crie conta em **https://discloud.com** e entre no Discord deles para liberar o plano.
-2. No seu computador, rode `npm run deploy` uma vez (registra os comandos).
+2. Os comandos são registrados automaticamente quando o bot liga (não precisa rodar `npm run deploy`).
 3. Monte um **.zip** com: `src/`, `assets/`, `package.json`, `discloud.config` e o seu `.env`. **Não** inclua `node_modules/` nem `data/`.
 4. Envie o .zip pelo painel ou pelo comando `/upload` do bot da Discloud.
 5. Para atualizar, envie um novo .zip com o comando de *commit*.
